@@ -14,8 +14,8 @@ class Products:
     def __init__(self, collection):
         self.collection = collection
 
-    def list(self):
-        documents = self.collection.find().sort(
+    def list(self, *, limit=0):
+        documents = self.collection.find(limit=limit).sort(
             [("created_at", DESCENDING), ("_id", ASCENDING)]
         )
         return [Product.from_document(document) for document in documents]

@@ -2,7 +2,7 @@
 
 Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. O painel administrativo permite cadastrar plantas manualmente ou consultar o iNaturalist pelo nome científico para preencher dados e aproveitar uma foto licenciada.
 
-Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. **Entrar como administrador** abre o formulário de login do Supabase. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
+Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. **Entrar como administrador** abre o formulário de login do Supabase. A página mostra até três plantas do catálogo. Quando ele está vazio ou indisponível, exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
 
 ## Arquitetura dos dados
 

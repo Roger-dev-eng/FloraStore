@@ -13,7 +13,7 @@ from redis.exceptions import RedisError
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from flora.auth import AccessDenied, SupabaseAuth
-from flora.inaturalist import HERO_PHOTO, find_species
+from flora.inaturalist import HERO_PHOTO, PREVIEW_PLANTS, find_species
 from flora.products import (
     CATEGORIES,
     format_brl,
@@ -54,15 +54,17 @@ def log_failure(operation, error):
     LOGGER.warning("%s falhou (%s)", operation, type(error).__name__)
 
 
-def read_products(settings):
+def read_products(settings, *, limit=0, show_errors=True):
     if not settings.mongodb_uri:
-        st.info("O catálogo estará disponível quando a conexão com o MongoDB for configurada.")
+        if show_errors:
+            st.info("O catálogo estará disponível quando a conexão com o MongoDB for configurada.")
         return None
     try:
-        return product_store(settings).list()
+        return product_store(settings).list(limit=limit)
     except (PyMongoError, ValueError) as error:
         log_failure("Listagem do MongoDB", error)
-        st.error("Não foi possível carregar o catálogo. Tente novamente em instantes.")
+        if show_errors:
+            st.error("Não foi possível carregar o catálogo. Tente novamente em instantes.")
         return None
 
 
@@ -153,35 +155,35 @@ def hero(*, catalog_link=True):
     """)
 
 
-def product_markup(product):
-    name = html.escape(product.name)
-    category = html.escape(product.category)
-    scientific_name = html.escape(product.scientific_name)
-    description = html.escape(product.description)
-    photo_url = product.photo.url if product.photo else product.image_url
+def plant_image(name, custom_image, photo, category=""):
+    photo_url = photo.url if photo else custom_image
     if photo_url:
         image = (
-            f'<img src="{html.escape(photo_url, quote=True)}" alt="{name}" '
+            f'<img src="{html.escape(photo_url, quote=True)}" alt="{html.escape(name, quote=True)}" '
             'loading="lazy" referrerpolicy="no-referrer">'
         )
     else:
         image = '<span class="material-symbols-rounded" aria-label="Sem foto">potted_plant</span>'
 
+    category_tag = f'<span class="category">{html.escape(category)}</span>' if category else ""
     credit = ""
-    if product.photo:
-        attribution = html.escape(product.photo.attribution or "iNaturalist")
-        source = html.escape(product.photo.source_url, quote=True)
+    if photo:
+        attribution = html.escape(photo.attribution or "iNaturalist")
+        source = html.escape(photo.source_url, quote=True)
         credit = (
             f'<a href="{source}" target="_blank" rel="noopener noreferrer">'
-            f'{attribution} · {html.escape(product.photo.license)}</a>'
+            f'{attribution} · {html.escape(photo.license)}</a>'
         )
+    return f'<div class="product-image">{image}{category_tag}{credit}</div>'
 
+
+def product_markup(product):
     return f"""
         <article class="product-card">
-          <div class="product-image">{image}<span class="category">{category}</span>{credit}</div>
-          <h3>{name}</h3>
-          <p class="species">{scientific_name}</p>
-          <p class="description">{description}</p>
+          {plant_image(product.name, product.image_url, product.photo, product.category)}
+          <h3>{html.escape(product.name)}</h3>
+          <p class="species">{html.escape(product.scientific_name)}</p>
+          <p class="description">{html.escape(product.description)}</p>
           <p class="product-price">{format_brl(product.price_cents)}</p>
         </article>
     """
@@ -337,12 +339,36 @@ def choose_access(mode):
     st.session_state.access_mode = mode
 
 
+def show_access_plants(settings):
+    products = read_products(settings, limit=len(PREVIEW_PLANTS), show_errors=False)
+    with st.container(key="access_plants"):
+        if products:
+            st.subheader("Plantas no catálogo")
+            cards = [product_markup(product) for product in products]
+        else:
+            st.subheader("Conheça algumas plantas")
+            cards = [
+                f"""
+                <article class="product-card">
+                    {plant_image(name, "", photo)}
+                    <h3>{html.escape(name)}</h3>
+                    <p class="species">{html.escape(scientific_name)}</p>
+                </article>
+                """
+                for name, scientific_name, photo in PREVIEW_PLANTS
+            ]
+        for column, card in zip(st.columns(len(PREVIEW_PLANTS)), cards):
+            with column, st.container(border=True):
+                st.html(card)
+
+
 def show_access(settings):
+    admin_login = st.session_state.get("access_mode") == ADMIN_LOGIN
     with st.container(key="access_screen"):
         panel, cover = st.columns([1, 1.25], gap="large", vertical_alignment="center")
         with panel, st.container(key="access_panel", border=True):
             show_brand()
-            if st.session_state.get("access_mode") == ADMIN_LOGIN:
+            if admin_login:
                 show_login(settings)
                 st.button(
                     "Voltar", icon=":material/arrow_back:", on_click=choose_access,
@@ -360,6 +386,8 @@ def show_access(settings):
                 )
         with cover:
             hero(catalog_link=False)
+    if not admin_login:
+        show_access_plants(settings)
 
 
 def plant_lookup():

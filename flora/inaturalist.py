@@ -14,6 +14,21 @@ HERO_PHOTO = Photo(
     source_url="https://www.inaturalist.org/photos/463215232",
     license="CC BY",
 )
+PREVIEW_PLANTS = (
+    ("Costela-de-adão", "Monstera deliciosa", HERO_PHOTO),
+    ("Zamioculca", "Zamioculcas zamiifolia", Photo(
+        url="https://inaturalist-open-data.s3.amazonaws.com/photos/628384145/medium.jpg",
+        attribution="",
+        source_url="https://www.inaturalist.org/photos/628384145",
+        license="CC0",
+    )),
+    ("Jiboia", "Epipremnum aureum", Photo(
+        url="https://inaturalist-open-data.s3.amazonaws.com/photos/584537294/medium.jpg",
+        attribution="",
+        source_url="https://www.inaturalist.org/photos/584537294",
+        license="CC0",
+    )),
+)
 
 
 @dataclass(frozen=True)

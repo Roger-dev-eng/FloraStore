@@ -145,13 +145,21 @@
 .st-key-access_screen .flora-hero {
   display: flex;
   align-items: center;
-  min-height: clamp(23rem, 61vh, 35rem);
+  min-height: clamp(20rem, 46vh, 28rem);
   margin: 0;
   padding: clamp(1.65rem, 3.5vw, 3rem);
 }
 
 .st-key-access_screen .flora-hero h1 {
   font-size: clamp(3.65rem, 7vw, 6rem);
+}
+
+.st-key-access_plants {
+  margin-top: 1.55rem;
+}
+
+.st-key-access_plants .product-image {
+  height: clamp(9.5rem, 13.4vw, 13rem);
 }
 
 .stApp h2 {
