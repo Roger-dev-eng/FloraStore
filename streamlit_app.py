@@ -54,17 +54,15 @@ def log_failure(operation, error):
     LOGGER.warning("%s falhou (%s)", operation, type(error).__name__)
 
 
-def read_products(settings, *, limit=0, show_errors=True):
+def read_products(settings):
     if not settings.mongodb_uri:
-        if show_errors:
-            st.info("O catálogo estará disponível quando a conexão com o MongoDB for configurada.")
+        st.info("O catálogo estará disponível quando a conexão com o MongoDB for configurada.")
         return None
     try:
-        return product_store(settings).list(limit=limit)
+        return product_store(settings).list()
     except (PyMongoError, ValueError) as error:
         log_failure("Listagem do MongoDB", error)
-        if show_errors:
-            st.error("Não foi possível carregar o catálogo. Tente novamente em instantes.")
+        st.error("Não foi possível carregar o catálogo. Tente novamente em instantes.")
         return None
 
 
@@ -133,18 +131,14 @@ def navigation(settings, is_admin):
     return page or pages[0]
 
 
-def hero(*, catalog_link=True):
+def hero():
     photo = HERO_PHOTO
-    action = (
-        '<a class="hero-cta" href="#catalogo">Explorar plantas <span aria-hidden="true">↓</span></a>'
-        if catalog_link else ""
-    )
     st.html(f"""
         <section class="flora-hero" aria-labelledby="hero-title">
             <div class="hero-copy">
                 <h1 id="hero-title">Mais verde<br><em>em casa.</em></h1>
                 <p>Escolha suas plantas favoritas e faça seu pedido pelo WhatsApp.</p>
-                {action}
+                <a class="hero-cta" href="#catalogo">Explorar plantas <span aria-hidden="true">↓</span></a>
             </div>
             <figure>
                 <img src="{photo.url}" alt="Folhas de uma costela-de-adão" referrerpolicy="no-referrer">
@@ -210,15 +204,19 @@ def show_recent(settings, products):
 @st.fragment(run_every="5s")
 def show_catalog(settings):
     st.header("Catálogo de plantas", anchor="catalogo")
+    products = read_products(settings)
+    if not products:
+        if products is not None:
+            st.info("Ainda não há plantas disponíveis para compra.")
+        show_catalog_examples()
+        return
+
     search_col, category_col = st.columns([2, 1])
     with search_col:
         query = normalize_search(st.text_input("Buscar plantas", placeholder="Nome comum ou científico").strip())
     with category_col:
         category = st.selectbox("Categoria", ("Todas", *CATEGORIES))
 
-    products = read_products(settings)
-    if products is None:
-        return
     visible_products = [
         product for product in products
         if (category == "Todas" or product.category == category)
@@ -226,9 +224,7 @@ def show_catalog(settings):
     ]
     count = len(visible_products)
     st.caption(f"{count} {'planta encontrada' if count == 1 else 'plantas encontradas'}")
-    if not products:
-        st.info("Ainda não há plantas cadastradas. Acesse Administração para cadastrar a primeira.")
-    elif not visible_products:
+    if not visible_products:
         st.info("Nenhuma planta corresponde a essa busca.")
 
     for start in range(0, count, 3):
@@ -339,55 +335,39 @@ def choose_access(mode):
     st.session_state.access_mode = mode
 
 
-def show_access_plants(settings):
-    products = read_products(settings, limit=len(PREVIEW_PLANTS), show_errors=False)
-    with st.container(key="access_plants"):
-        if products:
-            st.subheader("Plantas no catálogo")
-            cards = [product_markup(product) for product in products]
-        else:
-            st.subheader("Conheça algumas plantas")
-            cards = [
-                f"""
-                <article class="product-card">
-                    {plant_image(name, "", photo)}
-                    <h3>{html.escape(name)}</h3>
-                    <p class="species">{html.escape(scientific_name)}</p>
-                </article>
-                """
-                for name, scientific_name, photo in PREVIEW_PLANTS
-            ]
-        for column, card in zip(st.columns(len(PREVIEW_PLANTS)), cards):
+def show_catalog_examples():
+    with st.container(key="catalog_examples"):
+        st.subheader("Exemplos de plantas")
+        for column, (name, scientific_name, photo) in zip(st.columns(len(PREVIEW_PLANTS)), PREVIEW_PLANTS):
             with column, st.container(border=True):
-                st.html(card)
+                st.html(f"""
+                    <article class="product-card">
+                        {plant_image(name, "", photo)}
+                        <h3>{html.escape(name)}</h3>
+                        <p class="species">{html.escape(scientific_name)}</p>
+                    </article>
+                """)
 
 
 def show_access(settings):
-    admin_login = st.session_state.get("access_mode") == ADMIN_LOGIN
-    with st.container(key="access_screen"):
-        panel, cover = st.columns([1, 1.25], gap="large", vertical_alignment="center")
-        with panel, st.container(key="access_panel", border=True):
-            show_brand()
-            if admin_login:
-                show_login(settings)
-                st.button(
-                    "Voltar", icon=":material/arrow_back:", on_click=choose_access,
-                    args=(None,), width="stretch",
-                )
-            else:
-                st.header("Escolha como entrar")
-                st.button(
-                    "Entrar como cliente", type="primary", icon=":material/shopping_bag:",
-                    on_click=choose_access, args=(CLIENT_ACCESS,), width="stretch",
-                )
-                st.button(
-                    "Entrar como administrador", icon=":material/admin_panel_settings:",
-                    on_click=choose_access, args=(ADMIN_LOGIN,), width="stretch",
-                )
-        with cover:
-            hero(catalog_link=False)
-    if not admin_login:
-        show_access_plants(settings)
+    with st.container(key="access_panel", border=True):
+        show_brand()
+        if st.session_state.get("access_mode") == ADMIN_LOGIN:
+            show_login(settings)
+            st.button(
+                "Voltar", icon=":material/arrow_back:", on_click=choose_access,
+                args=(None,), width="stretch",
+            )
+        else:
+            st.header("Escolha como entrar")
+            st.button(
+                "Entrar como cliente", type="primary", icon=":material/shopping_bag:",
+                on_click=choose_access, args=(CLIENT_ACCESS,), width="stretch",
+            )
+            st.button(
+                "Entrar como administrador", icon=":material/admin_panel_settings:",
+                on_click=choose_access, args=(ADMIN_LOGIN,), width="stretch",
+            )
 
 
 def plant_lookup():

@@ -132,33 +132,15 @@
   color: inherit;
 }
 
-.st-key-access_screen {
-  margin-top: clamp(1rem, 5vh, 3.5rem);
-}
-
 .st-key-access_panel {
+  max-width: 32rem;
+  margin: clamp(1rem, 10vh, 5rem) auto 0;
   background: #fdfdf7;
   border-radius: 1.15rem;
   padding: clamp(1rem, 2.65vw, 2rem);
 }
 
-.st-key-access_screen .flora-hero {
-  display: flex;
-  align-items: center;
-  min-height: clamp(20rem, 46vh, 28rem);
-  margin: 0;
-  padding: clamp(1.65rem, 3.5vw, 3rem);
-}
-
-.st-key-access_screen .flora-hero h1 {
-  font-size: clamp(3.65rem, 7vw, 6rem);
-}
-
-.st-key-access_plants {
-  margin-top: 1.55rem;
-}
-
-.st-key-access_plants .product-image {
+.st-key-catalog_examples .product-image {
   height: clamp(9.5rem, 13.4vw, 13rem);
 }
 
@@ -277,14 +259,6 @@
 
   .flora-hero figure img {
     opacity: .37;
-  }
-
-  .st-key-access_screen {
-    margin-top: .35rem;
-  }
-
-  .st-key-access_screen .flora-hero {
-    min-height: 16rem;
   }
 
   .product-image {
