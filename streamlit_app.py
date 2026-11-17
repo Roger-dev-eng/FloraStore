@@ -9,7 +9,9 @@ import redis
 import streamlit as st
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
+from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
+from redis.retry import Retry
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from flora.auth import AccessDenied, SupabaseAuth
@@ -50,6 +52,24 @@ def redis_client(url):
     return redis.Redis.from_url(
         url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2,
     )
+
+
+@st.cache_resource
+def admin_redis_client(url):
+    return redis.Redis.from_url(
+        url, decode_responses=True, socket_connect_timeout=0.7, socket_timeout=0.7,
+        retry=Retry(NoBackoff(), 0),
+    )
+
+
+def admin_auth(settings):
+    cache = None
+    if settings.redis_url:
+        try:
+            cache = admin_redis_client(settings.redis_url)
+        except (RedisError, ValueError) as error:
+            log_failure("Conexão do cache de sessões", error)
+    return SupabaseAuth(settings.supabase_url, settings.supabase_key, cache=cache)
 
 
 def log_failure(operation, error):
@@ -102,13 +122,13 @@ def show_brand():
 
 def leave_access(settings):
     st.session_state.pop("access_mode", None)
-    token = st.session_state.pop("admin_token", None)
-    if token:
+    session = st.session_state.pop("admin_session", None)
+    if session:
         st.session_state.reset_product_form = True
         st.session_state.pop("product_notice", None)
-        auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+        auth = admin_auth(settings)
         try:
-            auth.sign_out(token)
+            auth.sign_out(session)
         except httpx.HTTPError as error:
             log_failure("Logout no Supabase", error)
 
@@ -333,12 +353,12 @@ def show_login(settings):
     if not email.strip() or not password:
         st.warning("Preencha o e-mail e a senha.")
         return
-    auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+    auth = admin_auth(settings)
     try:
-        st.session_state.admin_token = auth.sign_in(email.strip(), password)
+        st.session_state.admin_session = auth.sign_in(email.strip(), password)
     except AccessDenied as error:
         st.error(str(error))
-    except (httpx.HTTPError, ValueError, KeyError) as error:
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
         log_failure("Login no Supabase", error)
         st.error("O serviço de login está indisponível. Tente novamente em instantes.")
     else:
@@ -453,7 +473,7 @@ def product_markup_preview(url, name):
     )
 
 
-def product_form(settings, admin):
+def product_form(settings, auth, session):
     if notice := st.session_state.pop("product_notice", None):
         st.success(notice)
     if not settings.mongodb_uri:
@@ -486,6 +506,7 @@ def product_form(settings, admin):
         st.warning(str(error))
         return
 
+    admin = auth.require_admin(session, fresh=True)
     fields = {
         "name": name, "scientific_name": scientific_name, "category": category,
         "description": description, "price_cents": price_cents, "image_url": custom_image,
@@ -511,11 +532,15 @@ def product_form(settings, admin):
 
 
 def show_admin(settings):
-    auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+    auth = admin_auth(settings)
+    session = st.session_state.admin_session
     try:
-        admin = auth.require_admin(st.session_state.admin_token)
+        admin = auth.require_admin(session)
+        st.header("Painel administrativo")
+        st.caption(admin.email)
+        product_form(settings, auth, session)
     except AccessDenied as error:
-        st.session_state.pop("admin_token", None)
+        st.session_state.pop("admin_session", None)
         st.session_state.access_mode = ADMIN_LOGIN
         st.session_state.auth_notice = str(error)
         st.session_state.reset_product_form = True
@@ -524,11 +549,6 @@ def show_admin(settings):
     except (httpx.HTTPError, ValueError, KeyError) as error:
         log_failure("Validação de acesso no Supabase", error)
         st.error("Não foi possível verificar sua sessão. Tente novamente em instantes.")
-        return
-
-    st.header("Painel administrativo")
-    st.caption(admin.email)
-    product_form(settings, admin)
 
 
 def main():
@@ -560,7 +580,7 @@ def main():
         st.session_state.pop("species_choice", None)
         st.session_state.pop("product_id", None)
 
-    is_admin = bool(st.session_state.get("admin_token"))
+    is_admin = bool(st.session_state.get("admin_session"))
     if not is_admin and st.session_state.get("access_mode") != CLIENT_ACCESS:
         show_access(settings)
         return

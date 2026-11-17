@@ -8,9 +8,9 @@ Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite
 
 | Tecnologia | Responsabilidade |
 | --- | --- |
-| **Supabase Auth / PostgreSQL** | Login por e-mail e senha, identidade e autorização do administrador. A permissão fica em `app_metadata.role`, que o servidor consulta a cada acesso ao painel e no envio de um cadastro. |
+| **Supabase Auth / PostgreSQL** | Login por e-mail e senha, identidade e autorização do administrador. A permissão fica em `app_metadata.role` e é consultada diretamente no Supabase antes de publicar um produto. |
 | **MongoDB** | Fonte do catálogo. Cada documento contém nome, categoria, descrição, preço em centavos e, quando disponíveis, origem botânica e créditos da foto. Cadastros manuais também guardam o identificador Supabase de quem os criou. |
-| **Redis** | Lista os oito últimos produtos adicionados por cada sessão anônima. Usa um conjunto ordenado por horário e expira 24 horas após a última seleção. Se o cache falhar, o catálogo e o carrinho continuam funcionando. |
+| **Redis** | Lista os oito últimos produtos adicionados por sessão anônima durante 24 horas após a última seleção. Também guarda a validação da sessão administrativa por até 30 segundos, usando um hash do token como chave e sem salvar senhas ou tokens no cache. Se o Redis estiver indisponível, o painel consulta o Supabase diretamente. |
 | **Streamlit** | Interface pública e painel. O carrinho vive na sessão do navegador. O catálogo aberto consulta o MongoDB a cada cinco segundos para refletir novos produtos. |
 | **iNaturalist** | Fonte externa de espécies e fotos. O catálogo lê os produtos do MongoDB após a importação. Os preços e nomes comerciais iniciais são exemplos da FloraStore. |
 
