@@ -2,6 +2,8 @@
 
 Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. O painel administrativo permite cadastrar plantas manualmente ou consultar o iNaturalist pelo nome científico para preencher dados e aproveitar uma foto licenciada.
 
+Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. **Entrar como administrador** abre o formulário de login do Supabase. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
+
 ## Arquitetura dos dados
 
 | Tecnologia | Responsabilidade |
@@ -74,8 +76,8 @@ Grave de 5 a 10 minutos. Use sua conta administrativa de teste e mantenha senhas
 
 | Tempo sugerido | O que mostrar |
 | --- | --- |
-| 0:00–0:50 | Abra o catálogo público e explique o papel de Supabase, MongoDB e Redis. Abra outra janela para o painel administrativo. |
-| 0:50–1:45 | Entre com a conta administrativa pelo formulário da FloraStore e mostre o painel de cadastro. |
+| 0:00–0:50 | Mostre as duas opções da tela inicial, entre como cliente e explique o papel de Supabase, MongoDB e Redis. |
+| 0:50–1:45 | Em outra janela, escolha **Entrar como administrador**, faça login e mostre o painel de cadastro. |
 | 1:45–3:15 | Consulte uma espécie no iNaturalist, informe nome, descrição, categoria e preço e publique. Volte à janela do cliente e mostre a planta recém-cadastrada. |
 | 3:15–4:45 | Adicione dois produtos, mostre a lista de recentes, altere uma quantidade e confira o total. |
 | 4:45–5:30 | Clique em **Comprar pelo WhatsApp** para mostrar o redirecionamento e o texto preenchido. Encerre a simulação nessa etapa. |

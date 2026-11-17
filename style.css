@@ -132,6 +132,28 @@
   color: inherit;
 }
 
+.st-key-access_screen {
+  margin-top: clamp(1rem, 5vh, 3.5rem);
+}
+
+.st-key-access_panel {
+  background: #fdfdf7;
+  border-radius: 1.15rem;
+  padding: clamp(1rem, 2.65vw, 2rem);
+}
+
+.st-key-access_screen .flora-hero {
+  display: flex;
+  align-items: center;
+  min-height: clamp(23rem, 61vh, 35rem);
+  margin: 0;
+  padding: clamp(1.65rem, 3.5vw, 3rem);
+}
+
+.st-key-access_screen .flora-hero h1 {
+  font-size: clamp(3.65rem, 7vw, 6rem);
+}
+
 .stApp h2 {
   font: 400 clamp(2.4rem, 4vw, 3.2rem)/1.05 var(--flora-display);
   letter-spacing: -.02em;
@@ -247,6 +269,14 @@
 
   .flora-hero figure img {
     opacity: .37;
+  }
+
+  .st-key-access_screen {
+    margin-top: .35rem;
+  }
+
+  .st-key-access_screen .flora-hero {
+    min-height: 16rem;
   }
 
   .product-image {

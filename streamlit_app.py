@@ -33,6 +33,8 @@ CSS_PATH = Path(__file__).with_name("style.css")
 CATALOG = "Catálogo"
 CART = "Carrinho"
 ADMIN = "Administração"
+CLIENT_ACCESS = "client"
+ADMIN_LOGIN = "admin_login"
 PRODUCT_INPUTS = ("name", "description", "scientific_name", "category", "price", "image_url")
 
 
@@ -87,33 +89,60 @@ def adjust_cart(product_id, change, settings):
             log_failure("Registro no Redis", error)
 
 
-def navigation():
-    brand, menu = st.columns([1, 2], vertical_alignment="center")
+def show_brand():
+    st.html("""
+        <div class="flora-brand">
+            <span class="brand-icon material-symbols-rounded" aria-hidden="true">potted_plant</span>
+            <span>FloraStore</span>
+        </div>
+    """)
+
+
+def leave_access(settings):
+    st.session_state.pop("access_mode", None)
+    token = st.session_state.pop("admin_token", None)
+    if token:
+        st.session_state.reset_product_form = True
+        st.session_state.pop("product_notice", None)
+        auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+        try:
+            auth.sign_out(token)
+        except httpx.HTTPError as error:
+            log_failure("Logout no Supabase", error)
+
+
+def navigation(settings, is_admin):
+    brand, menu, action = st.columns([2, 3, 1.3], vertical_alignment="center")
     with brand:
-        st.html("""
-            <div class="flora-brand">
-                <span class="brand-icon material-symbols-rounded" aria-hidden="true">potted_plant</span>
-                <span>FloraStore</span>
-            </div>
-        """)
+        show_brand()
+    pages = [ADMIN, CATALOG, CART] if is_admin else [CATALOG, CART]
     with menu:
         count = sum(st.session_state.cart.values())
         page = st.segmented_control(
-            "Navegação", [CATALOG, CART, ADMIN], default=CATALOG, key="page",
+            "Navegação", pages, default=pages[0], key="admin_page" if is_admin else "customer_page",
             label_visibility="collapsed", selection_mode="single",
             format_func=lambda option: f"Carrinho ({count})" if option == CART and count else option,
         )
-    return page or CATALOG
+    with action:
+        st.button(
+            "Sair" if is_admin else "Trocar acesso", on_click=leave_access, args=(settings,),
+            icon=":material/logout:" if is_admin else ":material/swap_horiz:", width="stretch",
+        )
+    return page or pages[0]
 
 
-def hero():
+def hero(*, catalog_link=True):
     photo = HERO_PHOTO
+    action = (
+        '<a class="hero-cta" href="#catalogo">Explorar plantas <span aria-hidden="true">↓</span></a>'
+        if catalog_link else ""
+    )
     st.html(f"""
         <section class="flora-hero" aria-labelledby="hero-title">
             <div class="hero-copy">
                 <h1 id="hero-title">Mais verde<br><em>em casa.</em></h1>
                 <p>Escolha suas plantas favoritas e faça seu pedido pelo WhatsApp.</p>
-                <a class="hero-cta" href="#catalogo">Explorar plantas <span aria-hidden="true">↓</span></a>
+                {action}
             </div>
             <figure>
                 <img src="{photo.url}" alt="Folhas de uma costela-de-adão" referrerpolicy="no-referrer">
@@ -276,29 +305,61 @@ def show_cart(settings):
             st.warning("O WhatsApp da loja precisa ser configurado para finalizar o pedido.")
 
 
-def show_login(auth):
-    _, center, _ = st.columns([1, 2, 1])
-    with center, st.container(border=True):
-        st.header("Acesso administrativo")
-        if notice := st.session_state.pop("auth_notice", None):
-            st.info(notice)
-        with st.form("admin_login", clear_on_submit=True):
-            email = st.text_input("E-mail", autocomplete="username", max_chars=254)
-            password = st.text_input("Senha", type="password", autocomplete="current-password")
-            if not st.form_submit_button("Entrar", type="primary", width="stretch"):
-                return
-        if not email.strip() or not password:
-            st.warning("Preencha o e-mail e a senha.")
+def show_login(settings):
+    st.header("Acesso administrativo")
+    if notice := st.session_state.pop("auth_notice", None):
+        st.info(notice)
+    if not settings.supabase_url or not settings.supabase_key:
+        st.info("Configure o Supabase para acessar o painel.")
+        return
+
+    with st.form("admin_login", clear_on_submit=True, border=False):
+        email = st.text_input("E-mail", autocomplete="username", max_chars=254)
+        password = st.text_input("Senha", type="password", autocomplete="current-password")
+        if not st.form_submit_button("Entrar", type="primary", width="stretch"):
             return
-        try:
-            st.session_state.admin_token = auth.sign_in(email.strip(), password)
-        except AccessDenied as error:
-            st.error(str(error))
-        except (httpx.HTTPError, ValueError, KeyError) as error:
-            log_failure("Login no Supabase", error)
-            st.error("O serviço de login está indisponível. Tente novamente em instantes.")
-        else:
-            st.rerun()
+    if not email.strip() or not password:
+        st.warning("Preencha o e-mail e a senha.")
+        return
+    auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+    try:
+        st.session_state.admin_token = auth.sign_in(email.strip(), password)
+    except AccessDenied as error:
+        st.error(str(error))
+    except (httpx.HTTPError, ValueError, KeyError) as error:
+        log_failure("Login no Supabase", error)
+        st.error("O serviço de login está indisponível. Tente novamente em instantes.")
+    else:
+        st.rerun()
+
+
+def choose_access(mode):
+    st.session_state.access_mode = mode
+
+
+def show_access(settings):
+    with st.container(key="access_screen"):
+        panel, cover = st.columns([1, 1.25], gap="large", vertical_alignment="center")
+        with panel, st.container(key="access_panel", border=True):
+            show_brand()
+            if st.session_state.get("access_mode") == ADMIN_LOGIN:
+                show_login(settings)
+                st.button(
+                    "Voltar", icon=":material/arrow_back:", on_click=choose_access,
+                    args=(None,), width="stretch",
+                )
+            else:
+                st.header("Escolha como entrar")
+                st.button(
+                    "Entrar como cliente", type="primary", icon=":material/shopping_bag:",
+                    on_click=choose_access, args=(CLIENT_ACCESS,), width="stretch",
+                )
+                st.button(
+                    "Entrar como administrador", icon=":material/admin_panel_settings:",
+                    on_click=choose_access, args=(ADMIN_LOGIN,), width="stretch",
+                )
+        with cover:
+            hero(catalog_link=False)
 
 
 def plant_lookup():
@@ -394,40 +455,22 @@ def product_form(settings, admin):
 
 
 def show_admin(settings):
-    if not settings.supabase_url or not settings.supabase_key:
-        st.header("Acesso administrativo")
-        st.info("Configure o Supabase para acessar o painel.")
-        return
-
     auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
-    token = st.session_state.get("admin_token")
-    if not token:
-        show_login(auth)
-        return
-
-    heading, action = st.columns([3, 1], vertical_alignment="center")
-    with heading:
-        st.header("Painel administrativo")
-    with action:
-        if st.button("Sair", icon=":material/logout:"):
-            st.session_state.pop("admin_token", None)
-            try:
-                auth.sign_out(token)
-            except httpx.HTTPError as error:
-                log_failure("Logout no Supabase", error)
-            st.rerun()
-
     try:
-        admin = auth.require_admin(token)
+        admin = auth.require_admin(st.session_state.admin_token)
     except AccessDenied as error:
         st.session_state.pop("admin_token", None)
+        st.session_state.access_mode = ADMIN_LOGIN
         st.session_state.auth_notice = str(error)
+        st.session_state.reset_product_form = True
+        st.session_state.pop("product_notice", None)
         st.rerun()
     except (httpx.HTTPError, ValueError, KeyError) as error:
         log_failure("Validação de acesso no Supabase", error)
         st.error("Não foi possível verificar sua sessão. Tente novamente em instantes.")
         return
 
+    st.header("Painel administrativo")
     st.caption(admin.email)
     product_form(settings, admin)
 
@@ -459,7 +502,12 @@ def main():
         st.session_state.pop("selected_species", None)
         st.session_state.pop("product_id", None)
 
-    page = navigation()
+    is_admin = bool(st.session_state.get("admin_token"))
+    if not is_admin and st.session_state.get("access_mode") != CLIENT_ACCESS:
+        show_access(settings)
+        return
+
+    page = navigation(settings, is_admin)
     if page == ADMIN:
         show_admin(settings)
     elif page == CART:
