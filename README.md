@@ -37,12 +37,16 @@ A aplicação usa o banco PostgreSQL gerenciado pelo Supabase por meio do Supaba
 
 ### Executar localmente
 
-Com Python 3.12, execute no PowerShell a partir da raiz do repositório.
+No PowerShell, use o [uv](https://docs.astral.sh/uv/getting-started/installation/) a partir da raiz do repositório. Se `.venv` já existir, use o ambiente existente.
 
 ```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .streamlit/secrets.example.toml .streamlit/secrets.toml
+if (-not (Test-Path .venv/Scripts/python.exe)) {
+    uv venv --python 3.12 .venv
+}
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+if (-not (Test-Path .streamlit/secrets.toml)) {
+    Copy-Item .streamlit/secrets.example.toml .streamlit/secrets.toml
+}
 ```
 
 Preencha `.streamlit/secrets.toml` com as credenciais. O Git ignora esse arquivo. As mesmas chaves também podem ser fornecidas como variáveis de ambiente.
