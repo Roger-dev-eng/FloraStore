@@ -1,6 +1,6 @@
 # FloraStore
 
-Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. No painel administrativo, busque uma planta pelo nome comum ou científico, selecione o resultado e clique em **Usar espécie** para preencher o nome científico e aproveitar uma foto licenciada, quando disponível. Também é possível cadastrar a planta manualmente.
+Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. No painel administrativo, busque uma planta pelo nome comum ou científico, selecione o resultado e clique em **Usar espécie** para preencher os nomes da planta e aproveitar uma foto licenciada, quando disponível. O administrador define o preço de cada novo cadastro. A descrição é opcional. Também é possível cadastrar a planta manualmente.
 
 Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite um nome popular ou científico em **Buscar plantas** e use **Categoria** para refinar os resultados. **Entrar como administrador** abre o formulário de login do Supabase. Quando o catálogo do cliente está vazio ou indisponível, ele exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
 
@@ -78,7 +78,7 @@ Grave de 5 a 10 minutos. Use sua conta administrativa de teste e mantenha senhas
 | --- | --- |
 | 0:00–0:50 | Mostre as duas opções da tela inicial, entre como cliente e explique o papel de Supabase, MongoDB e Redis. |
 | 0:50–1:45 | Em outra janela, escolha **Entrar como administrador**, faça login e mostre o painel de cadastro. |
-| 1:45–3:15 | Consulte uma espécie no iNaturalist, informe nome, descrição, categoria e preço e publique. Volte à janela do cliente e mostre a planta recém-cadastrada. |
+| 1:45–3:15 | Consulte uma espécie no iNaturalist, clique em **Usar espécie**, informe a categoria e o preço e publique. Volte à janela do cliente e mostre a planta recém-cadastrada. |
 | 3:15–4:45 | Adicione dois produtos, mostre a lista de recentes, altere uma quantidade e confira o total. |
 | 4:45–5:30 | Clique em **Comprar pelo WhatsApp** para mostrar o redirecionamento e o texto preenchido. Encerre a simulação nessa etapa. |
 

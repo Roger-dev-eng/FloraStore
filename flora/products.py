@@ -35,7 +35,7 @@ class Product:
             id=str(document["_id"]),
             name=document["name"],
             category=document["category"],
-            description=document["description"],
+            description=document.get("description") or "",
             price_cents=document["price_cents"],
             image_url=document.get("image_url", ""),
             scientific_name=document.get("scientific_name", ""),

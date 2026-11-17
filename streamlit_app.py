@@ -179,12 +179,16 @@ def plant_image(name, custom_image, photo, category=""):
 
 
 def product_markup(product):
+    description = (
+        f'<p class="description">{html.escape(product.description)}</p>'
+        if product.description else ""
+    )
     return f"""
         <article class="product-card">
           {plant_image(product.name, product.image_url, product.photo, product.category)}
           <h3>{html.escape(product.name)}</h3>
           <p class="species">{html.escape(product.scientific_name)}</p>
-          <p class="description">{html.escape(product.description)}</p>
+          {description}
           <p class="product-price">{format_brl(product.price_cents)}</p>
         </article>
     """
@@ -430,6 +434,7 @@ def plant_lookup(settings):
                     except (httpx.HTTPError, ValueError, KeyError) as error:
                         log_failure("Consulta de foto no iNaturalist", error)
                 st.session_state.selected_species = choice
+                st.session_state.product_name = choice.common_name or choice.scientific_name
                 st.session_state.product_scientific_name = choice.scientific_name
 
         if plant := st.session_state.get("selected_species"):
@@ -465,7 +470,7 @@ def product_form(settings, admin):
         with right:
             category = st.selectbox("Categoria *", CATEGORIES, key="product_category")
             price = st.text_input("Preço em reais *", key="product_price", placeholder="49,90", max_chars=10)
-        description = st.text_area("Descrição *", key="product_description", max_chars=500)
+        description = st.text_area("Descrição (opcional)", key="product_description", max_chars=500)
         custom_image = st.text_input("URL HTTPS da imagem", key="product_image_url", max_chars=2048,
                                     help="Se estiver vazia, usa a foto do iNaturalist quando disponível.")
         if not st.form_submit_button("Publicar no catálogo", type="primary", icon=":material/add:"):
@@ -473,8 +478,8 @@ def product_form(settings, admin):
 
     name, scientific_name, description = name.strip(), scientific_name.strip(), description.strip()
     try:
-        if not name or not description:
-            raise ValueError("Preencha o nome e a descrição da planta.")
+        if not name:
+            raise ValueError("Preencha o nome da planta.")
         price_cents = parse_price(price)
         custom_image = image_url(custom_image)
     except ValueError as error:
