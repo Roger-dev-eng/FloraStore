@@ -1,6 +1,6 @@
 import html
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,7 +13,9 @@ from redis.exceptions import RedisError
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from flora.auth import AccessDenied, SupabaseAuth
-from flora.inaturalist import HERO_PHOTO, PREVIEW_PLANTS, find_species
+from flora.inaturalist import (
+    HERO_PHOTO, PREVIEW_PLANTS, SPECIES_LIMIT, Species, fetch_species_photo, search_species,
+)
 from flora.products import (
     CATEGORIES,
     format_brl,
@@ -226,13 +228,10 @@ def show_catalog(settings):
         category = st.selectbox("Categoria", ("Todas", *CATEGORIES))
 
     search_terms = normalize_search(query).split()
-    visible_products = []
-    for product in products:
-        if category != "Todas" and product.category != category:
-            continue
-        name = normalize_search(f"{product.name} {product.scientific_name}")
-        if all(term in name for term in search_terms):
-            visible_products.append(product)
+    visible_products = [
+        product for product in products
+        if (category == "Todas" or product.category == category) and product.matches_search(search_terms)
+    ]
     count = len(visible_products)
     st.caption(f"{count} {'planta encontrada' if count == 1 else 'plantas encontradas'}")
     if not visible_products:
@@ -381,27 +380,60 @@ def show_access(settings):
             )
 
 
-def plant_lookup():
+def lookup_species(settings, query):
+    terms = normalize_search(query).split()
+    matches = {}
+    try:
+        for product in product_store(settings).list():
+            if product.inaturalist_taxon_id and product.scientific_name and product.matches_search(terms):
+                species = Species(product.inaturalist_taxon_id, product.scientific_name, product.photo, product.name)
+                matches.setdefault(species.id, species)
+    except (PyMongoError, ValueError) as error:
+        log_failure("Busca de espécies no catálogo", error)
+
+    try:
+        for species in search_species(query):
+            matches.setdefault(species.id, species)
+    except (httpx.HTTPError, ValueError, KeyError) as error:
+        log_failure("Busca no iNaturalist", error)
+        st.warning("O iNaturalist está indisponível. Você pode seguir com o cadastro manual.")
+        if not matches:
+            return None
+    return list(matches.values())[:SPECIES_LIMIT]
+
+
+def plant_lookup(settings):
     with st.expander("Buscar espécie no iNaturalist"):
         with st.form("lookup_species"):
-            query = st.text_input("Nome científico da espécie", placeholder="Ex. Monstera deliciosa", max_chars=180)
+            query = st.text_input(
+                "Nome comum ou científico", placeholder="Ex. jiboia ou Epipremnum aureum", max_chars=180,
+            )
             search = st.form_submit_button("Buscar espécie", icon=":material/search:")
-        if search and query.strip():
-            st.session_state.pop("selected_species", None)
-            try:
-                plant = find_species(" ".join(query.split()))
-            except (httpx.HTTPError, ValueError, KeyError) as error:
-                log_failure("Busca no iNaturalist", error)
-                st.warning("O iNaturalist está indisponível. Você pode preencher o cadastro manualmente.")
+        if search:
+            st.session_state.pop("species_choice", None)
+            st.session_state.species_matches = []
+            if normalize_search(query):
+                matches = lookup_species(settings, " ".join(query.split()))
+                st.session_state.species_matches = matches or []
+                if matches == []:
+                    st.info("Nenhuma espécie encontrada. Tente outro nome comum ou científico.")
             else:
-                if plant:
-                    st.session_state.selected_species = plant
-                    st.session_state["product_scientific_name"] = plant.scientific_name
-                else:
-                    st.info("Espécie não encontrada. Confira o nome científico e tente novamente.")
+                st.info("Digite um nome comum ou científico para buscar.")
+
+        if matches := st.session_state.get("species_matches"):
+            choice = st.selectbox("Espécies encontradas", matches, format_func=lambda species: species.label,
+                                  key="species_choice")
+            if st.button("Usar espécie", icon=":material/check:"):
+                if not choice.photo:
+                    try:
+                        choice = replace(choice, photo=fetch_species_photo(choice.id))
+                    except (httpx.HTTPError, ValueError, KeyError) as error:
+                        log_failure("Consulta de foto no iNaturalist", error)
+                st.session_state.selected_species = choice
+                st.session_state.product_scientific_name = choice.scientific_name
 
         if plant := st.session_state.get("selected_species"):
-            st.text(plant.scientific_name)
+            st.text(plant.label)
             if plant.photo:
                 st.html(product_markup_preview(plant.photo.url, plant.scientific_name))
                 st.link_button(f"Créditos da foto · {plant.photo.license}", plant.photo.source_url)
@@ -424,7 +456,7 @@ def product_form(settings, admin):
         return
 
     st.subheader("Cadastrar planta")
-    plant_lookup()
+    plant_lookup(settings)
     with st.form("new_product", border=True):
         left, right = st.columns(2)
         with left:
@@ -519,6 +551,8 @@ def main():
         for field in PRODUCT_INPUTS:
             st.session_state.pop(f"product_{field}", None)
         st.session_state.pop("selected_species", None)
+        st.session_state.pop("species_matches", None)
+        st.session_state.pop("species_choice", None)
         st.session_state.pop("product_id", None)
 
     is_admin = bool(st.session_state.get("admin_token"))

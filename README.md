@@ -1,6 +1,6 @@
 # FloraStore
 
-Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. O painel administrativo permite cadastrar plantas manualmente ou consultar o iNaturalist pelo nome científico para preencher dados e aproveitar uma foto licenciada.
+Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. No painel administrativo, busque uma planta pelo nome comum ou científico, selecione o resultado e clique em **Usar espécie** para preencher o nome científico e aproveitar uma foto licenciada, quando disponível. Também é possível cadastrar a planta manualmente.
 
 Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite um nome popular ou científico em **Buscar plantas** e use **Categoria** para refinar os resultados. **Entrar como administrador** abre o formulário de login do Supabase. Quando o catálogo do cliente está vazio ou indisponível, ele exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
 

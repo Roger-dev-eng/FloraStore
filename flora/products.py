@@ -26,9 +26,11 @@ class Product:
     image_url: str = ""
     scientific_name: str = ""
     photo: Photo | None = None
+    inaturalist_taxon_id: int | None = None
 
     @classmethod
     def from_document(cls, document):
+        source = document.get("source") or {}
         return cls(
             id=str(document["_id"]),
             name=document["name"],
@@ -38,7 +40,12 @@ class Product:
             image_url=document.get("image_url", ""),
             scientific_name=document.get("scientific_name", ""),
             photo=Photo(**document["photo"]) if document.get("photo") else None,
+            inaturalist_taxon_id=source.get("taxon_id") if source.get("provider") == "iNaturalist" else None,
         )
+
+    def matches_search(self, terms):
+        name = normalize_search(f"{self.name} {self.scientific_name}")
+        return all(term in name for term in terms)
 
 
 def normalize_search(text):
