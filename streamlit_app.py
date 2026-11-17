@@ -8,7 +8,7 @@ import httpx
 import redis
 import streamlit as st
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import OperationFailure, PyMongoError
 from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
 from redis.retry import Retry
@@ -73,7 +73,8 @@ def admin_auth(settings):
 
 
 def log_failure(operation, error):
-    LOGGER.warning("%s falhou (%s)", operation, type(error).__name__)
+    code = f", código {error.code}" if isinstance(error, OperationFailure) and error.code is not None else ""
+    LOGGER.warning("%s falhou (%s%s)", operation, type(error).__name__, code)
 
 
 def read_products(settings):

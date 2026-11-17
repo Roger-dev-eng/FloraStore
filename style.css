@@ -7,12 +7,17 @@
   --flora-muted: #546352;
   --flora-border: #dedfd1;
   --flora-display: "Instrument Serif", Georgia, serif;
+  --flora-toolbar-clearance: 4.75rem;
 }
 
 [data-testid="stMainBlockContainer"] {
   max-width: 76rem;
-  padding-top: 2.5rem;
+  padding-top: var(--flora-toolbar-clearance);
   padding-bottom: 4rem;
+}
+
+#catalogo {
+  scroll-margin-top: var(--flora-toolbar-clearance);
 }
 
 .stApp {
@@ -250,10 +255,6 @@
 }
 
 @media (max-width: 640px) {
-  [data-testid="stMainBlockContainer"] {
-    padding-top: 1.75rem;
-  }
-
   [data-testid="stSegmentedControl"] [role="radiogroup"] {
     justify-content: flex-start;
   }
