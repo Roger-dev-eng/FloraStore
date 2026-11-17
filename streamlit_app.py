@@ -1,0 +1,473 @@
+import html
+import logging
+from dataclasses import asdict
+from pathlib import Path
+from uuid import uuid4
+
+import httpx
+import redis
+import streamlit as st
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
+from redis.exceptions import RedisError
+from streamlit.errors import StreamlitSecretNotFoundError
+
+from flora.auth import AccessDenied, SupabaseAuth
+from flora.inaturalist import HERO_PHOTO, find_species
+from flora.products import (
+    CATEGORIES,
+    format_brl,
+    image_url,
+    normalize_search,
+    order_message,
+    order_total,
+    parse_price,
+    whatsapp_link,
+)
+from flora.settings import load_settings
+from flora.storage import Products, RecentProducts
+
+
+LOGGER = logging.getLogger(__name__)
+CSS_PATH = Path(__file__).with_name("style.css")
+CATALOG = "Catálogo"
+CART = "Carrinho"
+ADMIN = "Administração"
+PRODUCT_INPUTS = ("name", "description", "scientific_name", "category", "price", "image_url")
+
+
+@st.cache_resource
+def mongo_client(uri):
+    return MongoClient(uri, serverSelectionTimeoutMS=5000, timeoutMS=6000)
+
+
+@st.cache_resource
+def redis_client(url):
+    return redis.Redis.from_url(
+        url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2,
+    )
+
+
+def log_failure(operation, error):
+    LOGGER.warning("%s falhou (%s)", operation, type(error).__name__)
+
+
+def read_products(settings):
+    if not settings.mongodb_uri:
+        st.info("O catálogo estará disponível quando a conexão com o MongoDB for configurada.")
+        return None
+    try:
+        return product_store(settings).list()
+    except (PyMongoError, ValueError) as error:
+        log_failure("Listagem do MongoDB", error)
+        st.error("Não foi possível carregar o catálogo. Tente novamente em instantes.")
+        return None
+
+
+def product_store(settings):
+    return Products(mongo_client(settings.mongodb_uri)[settings.mongodb_database].products)
+
+
+def recent_store(settings):
+    return RecentProducts(redis_client(settings.redis_url), st.session_state.visitor_id)
+
+
+def adjust_cart(product_id, change, settings):
+    cart = st.session_state.cart
+    quantity = cart.get(product_id, 0) + change
+    if quantity <= 0:
+        cart.pop(product_id, None)
+    else:
+        cart[product_id] = quantity
+
+    if change > 0 and settings.redis_url:
+        try:
+            recent_store(settings).record(product_id)
+        except (RedisError, ValueError) as error:
+            log_failure("Registro no Redis", error)
+
+
+def navigation():
+    brand, menu = st.columns([1, 2], vertical_alignment="center")
+    with brand:
+        st.html("""
+            <div class="flora-brand">
+                <span class="brand-icon material-symbols-rounded" aria-hidden="true">potted_plant</span>
+                <span>FloraStore</span>
+            </div>
+        """)
+    with menu:
+        count = sum(st.session_state.cart.values())
+        page = st.segmented_control(
+            "Navegação", [CATALOG, CART, ADMIN], default=CATALOG, key="page",
+            label_visibility="collapsed", selection_mode="single",
+            format_func=lambda option: f"Carrinho ({count})" if option == CART and count else option,
+        )
+    return page or CATALOG
+
+
+def hero():
+    photo = HERO_PHOTO
+    st.html(f"""
+        <section class="flora-hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <h1 id="hero-title">Mais verde<br><em>em casa.</em></h1>
+                <p>Escolha suas plantas favoritas e faça seu pedido pelo WhatsApp.</p>
+                <a class="hero-cta" href="#catalogo">Explorar plantas <span aria-hidden="true">↓</span></a>
+            </div>
+            <figure>
+                <img src="{photo.url}" alt="Folhas de uma costela-de-adão" referrerpolicy="no-referrer">
+                <figcaption><a href="{photo.source_url}" target="_blank" rel="noopener noreferrer">
+                    {photo.attribution} · {photo.license}</a></figcaption>
+            </figure>
+        </section>
+    """)
+
+
+def product_markup(product):
+    name = html.escape(product.name)
+    category = html.escape(product.category)
+    scientific_name = html.escape(product.scientific_name)
+    description = html.escape(product.description)
+    photo_url = product.photo.url if product.photo else product.image_url
+    if photo_url:
+        image = (
+            f'<img src="{html.escape(photo_url, quote=True)}" alt="{name}" '
+            'loading="lazy" referrerpolicy="no-referrer">'
+        )
+    else:
+        image = '<span class="material-symbols-rounded" aria-label="Sem foto">potted_plant</span>'
+
+    credit = ""
+    if product.photo:
+        attribution = html.escape(product.photo.attribution or "iNaturalist")
+        source = html.escape(product.photo.source_url, quote=True)
+        credit = (
+            f'<a href="{source}" target="_blank" rel="noopener noreferrer">'
+            f'{attribution} · {html.escape(product.photo.license)}</a>'
+        )
+
+    return f"""
+        <article class="product-card">
+          <div class="product-image">{image}<span class="category">{category}</span>{credit}</div>
+          <h3>{name}</h3>
+          <p class="species">{scientific_name}</p>
+          <p class="description">{description}</p>
+          <p class="product-price">{format_brl(product.price_cents)}</p>
+        </article>
+    """
+
+
+def show_recent(settings, products):
+    if not settings.redis_url:
+        return
+    try:
+        recent_ids = recent_store(settings).list()
+    except (RedisError, ValueError) as error:
+        log_failure("Leitura do Redis", error)
+        st.caption("Os produtos recentes estão temporariamente indisponíveis.")
+        return
+
+    by_id = {product.id: product for product in products}
+    recent = [by_id[product_id] for product_id in recent_ids if product_id in by_id]
+    if recent:
+        st.subheader("Selecionados recentemente")
+        for product in recent:
+            st.text(f"{product.name} · {format_brl(product.price_cents)}")
+
+
+@st.fragment(run_every="5s")
+def show_catalog(settings):
+    st.header("Catálogo de plantas", anchor="catalogo")
+    search_col, category_col = st.columns([2, 1])
+    with search_col:
+        query = normalize_search(st.text_input("Buscar plantas", placeholder="Nome comum ou científico").strip())
+    with category_col:
+        category = st.selectbox("Categoria", ("Todas", *CATEGORIES))
+
+    products = read_products(settings)
+    if products is None:
+        return
+    visible_products = [
+        product for product in products
+        if (category == "Todas" or product.category == category)
+        and query in normalize_search(f"{product.name} {product.scientific_name}")
+    ]
+    count = len(visible_products)
+    st.caption(f"{count} {'planta encontrada' if count == 1 else 'plantas encontradas'}")
+    if not products:
+        st.info("Ainda não há plantas cadastradas. Acesse Administração para cadastrar a primeira.")
+    elif not visible_products:
+        st.info("Nenhuma planta corresponde a essa busca.")
+
+    for start in range(0, count, 3):
+        columns = st.columns(3, gap="medium")
+        for column, product in zip(columns, visible_products[start:start + 3]):
+            with column, st.container(key=f"product_{product.id}", border=True):
+                st.html(product_markup(product))
+                if st.button(
+                    "Adicionar ao carrinho", key=f"add_{product.id}",
+                    icon=":material/add_shopping_cart:", width="stretch",
+                ):
+                    adjust_cart(product.id, 1, settings)
+                    st.toast(f"{product.name} entrou no carrinho.")
+                    st.rerun()
+
+    show_recent(settings, products)
+
+
+def show_cart(settings):
+    st.header("Seu carrinho")
+    cart = st.session_state.cart
+    if not cart:
+        st.info("Seu carrinho está vazio. Escolha uma planta no catálogo.")
+        return
+
+    products = read_products(settings)
+    if products is None:
+        return
+    by_id = {product.id: product for product in products}
+    unavailable = cart.keys() - by_id.keys()
+    if unavailable:
+        for product_id in unavailable:
+            del cart[product_id]
+        st.warning("Algumas plantas ficaram indisponíveis e foram removidas do carrinho.")
+
+    items = [(by_id[product_id], quantity) for product_id, quantity in cart.items()]
+    if not items:
+        return
+
+    cart_column, checkout_column = st.columns([2, 1], gap="large")
+    with cart_column:
+        for product, quantity in items:
+            with st.container(border=True):
+                st.text(product.name)
+                st.caption(f"{quantity} × {format_brl(product.price_cents)} · {format_brl(quantity * product.price_cents)}")
+                less, more, remove = st.columns([1, 1, 2])
+                with less:
+                    st.button(
+                        "−", key=f"less_{product.id}", help=f"Diminuir quantidade de {product.name}",
+                        on_click=adjust_cart, args=(product.id, -1, settings), width="stretch",
+                    )
+                with more:
+                    st.button(
+                        "+", key=f"more_{product.id}", help=f"Aumentar quantidade de {product.name}",
+                        on_click=adjust_cart, args=(product.id, 1, settings), width="stretch",
+                    )
+                with remove:
+                    st.button(
+                        "Remover", key=f"remove_{product.id}", help=f"Remover {product.name}",
+                        on_click=adjust_cart, args=(product.id, -quantity, settings), width="stretch",
+                    )
+
+    with checkout_column, st.container(border=True):
+        st.subheader("Resumo do pedido")
+        st.metric("Total", format_brl(order_total(items)))
+        message = order_message(items)
+        with st.expander("Prévia da mensagem"):
+            st.text(message)
+        destination = whatsapp_link(settings.whatsapp_number, message)
+        if destination:
+            st.link_button(
+                "Comprar pelo WhatsApp", destination, type="primary", width="stretch",
+                icon=":material/chat:",
+            )
+        else:
+            st.warning("O WhatsApp da loja precisa ser configurado para finalizar o pedido.")
+
+
+def show_login(auth):
+    _, center, _ = st.columns([1, 2, 1])
+    with center, st.container(border=True):
+        st.header("Acesso administrativo")
+        if notice := st.session_state.pop("auth_notice", None):
+            st.info(notice)
+        with st.form("admin_login", clear_on_submit=True):
+            email = st.text_input("E-mail", autocomplete="username", max_chars=254)
+            password = st.text_input("Senha", type="password", autocomplete="current-password")
+            if not st.form_submit_button("Entrar", type="primary", width="stretch"):
+                return
+        if not email.strip() or not password:
+            st.warning("Preencha o e-mail e a senha.")
+            return
+        try:
+            st.session_state.admin_token = auth.sign_in(email.strip(), password)
+        except AccessDenied as error:
+            st.error(str(error))
+        except (httpx.HTTPError, ValueError, KeyError) as error:
+            log_failure("Login no Supabase", error)
+            st.error("O serviço de login está indisponível. Tente novamente em instantes.")
+        else:
+            st.rerun()
+
+
+def plant_lookup():
+    with st.expander("Buscar espécie no iNaturalist"):
+        with st.form("lookup_species"):
+            query = st.text_input("Nome científico da espécie", placeholder="Ex. Monstera deliciosa", max_chars=180)
+            search = st.form_submit_button("Buscar espécie", icon=":material/search:")
+        if search and query.strip():
+            st.session_state.pop("selected_species", None)
+            try:
+                plant = find_species(" ".join(query.split()))
+            except (httpx.HTTPError, ValueError, KeyError) as error:
+                log_failure("Busca no iNaturalist", error)
+                st.warning("O iNaturalist está indisponível. Você pode preencher o cadastro manualmente.")
+            else:
+                if plant:
+                    st.session_state.selected_species = plant
+                    st.session_state["product_scientific_name"] = plant.scientific_name
+                else:
+                    st.info("Espécie não encontrada. Confira o nome científico e tente novamente.")
+
+        if plant := st.session_state.get("selected_species"):
+            st.text(plant.scientific_name)
+            if plant.photo:
+                st.html(product_markup_preview(plant.photo.url, plant.scientific_name))
+                st.link_button(f"Créditos da foto · {plant.photo.license}", plant.photo.source_url)
+            else:
+                st.caption("A consulta não encontrou uma foto com licença compatível.")
+
+
+def product_markup_preview(url, name):
+    return (
+        f'<img class="lookup-image" src="{html.escape(url, quote=True)}" '
+        f'alt="{html.escape(name, quote=True)}" referrerpolicy="no-referrer">'
+    )
+
+
+def product_form(settings, admin):
+    if notice := st.session_state.pop("product_notice", None):
+        st.success(notice)
+    if not settings.mongodb_uri:
+        st.info("Configure o MongoDB para cadastrar produtos.")
+        return
+
+    st.subheader("Cadastrar planta")
+    plant_lookup()
+    with st.form("new_product", border=True):
+        left, right = st.columns(2)
+        with left:
+            name = st.text_input("Nome da planta *", key="product_name", max_chars=100)
+            scientific_name = st.text_input("Nome científico", key="product_scientific_name", max_chars=180)
+        with right:
+            category = st.selectbox("Categoria *", CATEGORIES, key="product_category")
+            price = st.text_input("Preço em reais *", key="product_price", placeholder="49,90", max_chars=10)
+        description = st.text_area("Descrição *", key="product_description", max_chars=500)
+        custom_image = st.text_input("URL HTTPS da imagem", key="product_image_url", max_chars=2048,
+                                    help="Se estiver vazia, usa a foto do iNaturalist quando disponível.")
+        if not st.form_submit_button("Publicar no catálogo", type="primary", icon=":material/add:"):
+            return
+
+    name, scientific_name, description = name.strip(), scientific_name.strip(), description.strip()
+    try:
+        if not name or not description:
+            raise ValueError("Preencha o nome e a descrição da planta.")
+        price_cents = parse_price(price)
+        custom_image = image_url(custom_image)
+    except ValueError as error:
+        st.warning(str(error))
+        return
+
+    fields = {
+        "name": name, "scientific_name": scientific_name, "category": category,
+        "description": description, "price_cents": price_cents, "image_url": custom_image,
+        "created_by": admin.id,
+    }
+    plant = st.session_state.get("selected_species")
+    if plant and normalize_search(plant.scientific_name) == normalize_search(scientific_name):
+        fields["source"] = {"provider": "iNaturalist", "taxon_id": plant.id}
+        if plant.photo and not custom_image:
+            fields["photo"] = asdict(plant.photo)
+
+    if "product_id" not in st.session_state:
+        st.session_state.product_id = uuid4().hex
+    try:
+        product_store(settings).save(st.session_state.product_id, fields)
+    except (PyMongoError, ValueError) as error:
+        log_failure("Cadastro no MongoDB", error)
+        st.error("Não foi possível confirmar o cadastro. Tente publicar novamente.")
+    else:
+        st.session_state.product_notice = "Planta publicada. O catálogo já pode exibi-la."
+        st.session_state.reset_product_form = True
+        st.rerun()
+
+
+def show_admin(settings):
+    if not settings.supabase_url or not settings.supabase_key:
+        st.header("Acesso administrativo")
+        st.info("Configure o Supabase para acessar o painel.")
+        return
+
+    auth = SupabaseAuth(settings.supabase_url, settings.supabase_key)
+    token = st.session_state.get("admin_token")
+    if not token:
+        show_login(auth)
+        return
+
+    heading, action = st.columns([3, 1], vertical_alignment="center")
+    with heading:
+        st.header("Painel administrativo")
+    with action:
+        if st.button("Sair", icon=":material/logout:"):
+            st.session_state.pop("admin_token", None)
+            try:
+                auth.sign_out(token)
+            except httpx.HTTPError as error:
+                log_failure("Logout no Supabase", error)
+            st.rerun()
+
+    try:
+        admin = auth.require_admin(token)
+    except AccessDenied as error:
+        st.session_state.pop("admin_token", None)
+        st.session_state.auth_notice = str(error)
+        st.rerun()
+    except (httpx.HTTPError, ValueError, KeyError) as error:
+        log_failure("Validação de acesso no Supabase", error)
+        st.error("Não foi possível verificar sua sessão. Tente novamente em instantes.")
+        return
+
+    st.caption(admin.email)
+    product_form(settings, admin)
+
+
+def main():
+    st.set_page_config(
+        page_title="FloraStore · Catálogo de plantas",
+        page_icon=":material/potted_plant:",
+        layout="wide",
+    )
+    st.html(CSS_PATH)
+    try:
+        try:
+            secrets = st.secrets.to_dict()
+        except StreamlitSecretNotFoundError:
+            secrets = None
+        settings = load_settings(secrets)
+    except (OSError, ValueError) as error:
+        log_failure("Leitura da configuração", error)
+        st.error("Revise o formato de configuração dos serviços.")
+        return
+
+    if "cart" not in st.session_state:
+        st.session_state.cart = {}
+        st.session_state.visitor_id = uuid4().hex
+    if st.session_state.pop("reset_product_form", False):
+        for field in PRODUCT_INPUTS:
+            st.session_state.pop(f"product_{field}", None)
+        st.session_state.pop("selected_species", None)
+        st.session_state.pop("product_id", None)
+
+    page = navigation()
+    if page == ADMIN:
+        show_admin(settings)
+    elif page == CART:
+        show_cart(settings)
+    else:
+        hero()
+        show_catalog(settings)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,259 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap");
+
+:root {
+  --flora-ink: #263628;
+  --flora-green: #315b39;
+  --flora-cream: #f8f8f0;
+  --flora-muted: #546352;
+  --flora-border: #dedfd1;
+  --flora-display: "Instrument Serif", Georgia, serif;
+}
+
+[data-testid="stMainBlockContainer"] {
+  max-width: 76rem;
+  padding-top: 2.5rem;
+  padding-bottom: 4rem;
+}
+
+.stApp {
+  font-family: "DM Sans", sans-serif;
+}
+
+.flora-brand {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font: 2.15rem/.95 var(--flora-display);
+  color: var(--flora-ink);
+  white-space: nowrap;
+}
+
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded", sans-serif;
+  font-feature-settings: "liga";
+  font-weight: normal;
+  line-height: 1;
+}
+
+.brand-icon {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.25rem;
+  color: #f7f8ed;
+  background: var(--flora-green);
+  border-radius: 50%;
+}
+
+[data-testid="stSegmentedControl"] [role="radiogroup"] {
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.flora-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 21rem;
+  margin: .6rem 0 1.55rem;
+  padding: clamp(1.8rem, 4.4vw, 3.75rem);
+  border-radius: 1.6rem;
+  overflow: hidden;
+  color: #f8f8ee;
+  background: radial-gradient(ellipse at 95% 5%, #61714d, #304c32 45%, #243a28 78%);
+}
+
+.flora-hero .hero-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.flora-hero h1 {
+  margin: 0;
+  padding: 0;
+  font: 400 clamp(4.2rem, 8vw, 7.1rem)/.82 var(--flora-display);
+  letter-spacing: -.02em;
+  color: inherit;
+}
+
+.flora-hero h1 em {
+  color: #e3ebcc;
+}
+
+.flora-hero h1 + p {
+  max-width: 23rem;
+  margin: 1.2rem 0 1.1rem;
+  color: #eff1e4;
+  font-size: .94rem;
+}
+
+.flora-hero .hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .65rem .95rem;
+  border-radius: .55rem;
+  color: #243a28;
+  background: #eef0d9;
+  font-size: .84rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.flora-hero figure {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 53%;
+  margin: 0;
+}
+
+.flora-hero figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 45%;
+  mask-image: linear-gradient(90deg, transparent, #000 31%);
+}
+
+.flora-hero figcaption {
+  position: absolute;
+  bottom: .85rem;
+  right: 1rem;
+  color: white;
+  background: #17281de6;
+  border-radius: .3rem;
+  padding: .2rem .4rem;
+  font-size: .67rem;
+}
+
+.flora-hero figcaption a {
+  color: inherit;
+}
+
+.stApp h2 {
+  font: 400 clamp(2.4rem, 4vw, 3.2rem)/1.05 var(--flora-display);
+  letter-spacing: -.02em;
+}
+
+.stApp h3 {
+  font: 400 1.85rem/1.1 var(--flora-display);
+}
+
+[class*="st-key-product_"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: #fdfdf7;
+}
+
+.product-card p,
+.product-card h3 {
+  margin: 0;
+  padding: 0;
+}
+
+.product-image {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(10rem, 20vw, 15rem);
+  margin-bottom: .8rem;
+  color: #768568;
+  background: #e9eedf;
+  border-radius: .63rem;
+  overflow: hidden;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.product-image .material-symbols-rounded {
+  font-size: 3rem;
+}
+
+.product-image .category {
+  position: absolute;
+  top: .6rem;
+  left: .6rem;
+  padding: .27rem .52rem;
+  border-radius: .3rem;
+  background: #f7f7e9;
+  color: #314433;
+  font-size: .69rem;
+  font-weight: 700;
+}
+
+.product-image a {
+  position: absolute;
+  right: .45rem;
+  bottom: .45rem;
+  padding: .14rem .32rem;
+  border-radius: .25rem;
+  background: #18291ddd;
+  color: white;
+  font-size: .64rem;
+}
+
+.product-card .species {
+  min-height: 1.3rem;
+  color: var(--flora-muted);
+  font-size: .79rem;
+  font-style: italic;
+}
+
+.product-card .description {
+  min-height: 3.75rem;
+  margin: .46rem 0 .5rem;
+  color: var(--flora-muted);
+  font-size: .86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.product-card .product-price {
+  color: var(--flora-green);
+  font-size: 1.14rem;
+  font-weight: 700;
+}
+
+.lookup-image {
+  display: block;
+  width: min(100%, 16rem);
+  max-height: 14rem;
+  object-fit: cover;
+  border-radius: .55rem;
+}
+
+@media (max-width: 640px) {
+  [data-testid="stMainBlockContainer"] {
+    padding-top: 1.75rem;
+  }
+
+  [data-testid="stSegmentedControl"] [role="radiogroup"] {
+    justify-content: flex-start;
+  }
+
+  .flora-hero {
+    min-height: 20rem;
+    margin-bottom: .6rem;
+  }
+
+  .flora-hero figure {
+    width: 75%;
+  }
+
+  .flora-hero figure img {
+    opacity: .37;
+  }
+
+  .product-image {
+    height: clamp(12rem, 60vw, 16.5rem);
+  }
+
+  .product-card .description {
+    min-height: 0;
+  }
+}
