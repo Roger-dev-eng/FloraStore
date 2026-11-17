@@ -157,7 +157,12 @@ def plant_image(name, custom_image, photo, category=""):
             'loading="lazy" referrerpolicy="no-referrer">'
         )
     else:
-        image = '<span class="material-symbols-rounded" aria-label="Sem foto">potted_plant</span>'
+        image = """
+          <div class="product-image-placeholder">
+            <span class="material-symbols-rounded" aria-hidden="true">potted_plant</span>
+            <span>Não há foto disponível</span>
+          </div>
+        """
 
     category_tag = f'<span class="category">{html.escape(category)}</span>' if category else ""
     credit = ""
@@ -213,15 +218,21 @@ def show_catalog(settings):
 
     search_col, category_col = st.columns([2, 1])
     with search_col:
-        query = normalize_search(st.text_input("Buscar plantas", placeholder="Nome comum ou científico").strip())
+        query = st.text_input(
+            "Buscar plantas", type="search", live="400ms",
+            placeholder="Nome comum ou científico",
+        )
     with category_col:
         category = st.selectbox("Categoria", ("Todas", *CATEGORIES))
 
-    visible_products = [
-        product for product in products
-        if (category == "Todas" or product.category == category)
-        and query in normalize_search(f"{product.name} {product.scientific_name}")
-    ]
+    search_terms = normalize_search(query).split()
+    visible_products = []
+    for product in products:
+        if category != "Todas" and product.category != category:
+            continue
+        name = normalize_search(f"{product.name} {product.scientific_name}")
+        if all(term in name for term in search_terms):
+            visible_products.append(product)
     count = len(visible_products)
     st.caption(f"{count} {'planta encontrada' if count == 1 else 'plantas encontradas'}")
     if not visible_products:

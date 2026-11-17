@@ -42,10 +42,11 @@ class Product:
 
 
 def normalize_search(text):
-    return "".join(
+    normalized = "".join(
         char for char in unicodedata.normalize("NFKD", text.casefold())
         if not unicodedata.combining(char)
     )
+    return re.sub(r"[\W_]+", " ", normalized).strip()
 
 
 def parse_price(raw):

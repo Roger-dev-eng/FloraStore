@@ -2,7 +2,7 @@
 
 Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. O painel administrativo permite cadastrar plantas manualmente ou consultar o iNaturalist pelo nome científico para preencher dados e aproveitar uma foto licenciada.
 
-Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. **Entrar como administrador** abre o formulário de login do Supabase. Quando o catálogo do cliente está vazio ou indisponível, ele exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
+Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite um nome popular ou científico em **Buscar plantas** e use **Categoria** para refinar os resultados. **Entrar como administrador** abre o formulário de login do Supabase. Quando o catálogo do cliente está vazio ou indisponível, ele exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
 
 ## Arquitetura dos dados
 
@@ -54,7 +54,7 @@ if (-not (Test-Path .streamlit/secrets.toml)) {
 Preencha `.streamlit/secrets.toml` com as credenciais. O Git ignora esse arquivo. As mesmas chaves também podem ser fornecidas como variáveis de ambiente.
 
 ```powershell
-# Importa seis produtos iniciais e cria o índice de ordenação no MongoDB
+# Importa 30 espécies iniciais e cria o índice de ordenação no MongoDB
 .venv\Scripts\python.exe -m scripts.seed_catalog
 
 # Inicia a aplicação

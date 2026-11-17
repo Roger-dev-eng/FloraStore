@@ -186,6 +186,16 @@
   font-size: 3rem;
 }
 
+.product-image-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: .45rem;
+  padding: .7rem;
+  text-align: center;
+  color: var(--flora-muted);
+  font-size: .84rem;
+}
+
 .product-image .category {
   position: absolute;
   top: .6rem;
