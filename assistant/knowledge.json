@@ -1,0 +1,32 @@
+[
+  {
+    "id": "guide-light",
+    "title": "Luz para plantas dentro de casa",
+    "content": "As plantas precisam de luz natural para crescer. Muitas plantas de interior se adaptam a locais claros com luz indireta. Algumas toleram menos luz, mas tolerar sombra não significa sobreviver em um cômodo sem janela. A escolha deve considerar a luminosidade e a espécie. A base atual da loja não tem uma classificação completa de tolerância à sombra de cada espécie. Antes de indicar uma planta para um ambiente específico, pergunte se há janela e sol direto.",
+    "source_url": "https://www.rhs.org.uk/plants/types/houseplants/choosing-the-best"
+  },
+  {
+    "id": "guide-watering",
+    "title": "Rega e drenagem",
+    "content": "A necessidade de água depende da espécie, do tamanho do vaso, do substrato, da luz e da temperatura. Evite recomendar um calendário universal de rega. Verifique a umidade do substrato e as necessidades da planta antes de regar. Use vaso com drenagem e evite deixar excesso de água acumulado no pratinho. Suculentas geralmente precisam de intervalos maiores entre regas do que plantas de ambientes úmidos.",
+    "source_url": "https://www.rhs.org.uk/plants/types/houseplants/growing-guide"
+  },
+  {
+    "id": "guide-environment",
+    "title": "Escolher um ambiente para a planta",
+    "content": "Ao escolher uma planta para casa, considere luz, espaço disponível e condições do ambiente. Prefira locais afastados de calor excessivo e correntes de ar. Uma planta pendente pode ser colocada em uma prateleira ou vaso suspenso, conforme o espaço e a luminosidade. A categoria Folhagens destaca folhas ornamentais. Pendentes reúne espécies de ramos ou folhas arqueados. Suculentas reúne plantas que armazenam água. Floração destaca plantas ornamentais com flores ou inflorescências.",
+    "source_url": "https://www.rhs.org.uk/plants/types/houseplants/growing-guide"
+  },
+  {
+    "id": "store-order",
+    "title": "Como comprar na FloraStore",
+    "content": "O cliente usa a busca por nome popular ou científico e o filtro de categoria para encontrar plantas. Para comprar, adicione os produtos ao carrinho, revise as quantidades e clique em Comprar pelo WhatsApp. A loja abre uma mensagem com os produtos, quantidades e total. O cliente revisa e envia a mensagem no WhatsApp. Preços atuais são os registrados no MongoDB. Os preços iniciais são valores de demonstração. Frete, prazo, formas de pagamento e disponibilidade de unidades devem ser confirmados com a loja pelo WhatsApp.",
+    "source_url": ""
+  },
+  {
+    "id": "store-assistant",
+    "title": "Informações disponíveis no catálogo",
+    "content": "Cada produto possui nome, nome científico quando cadastrado, categoria, preço e descrição opcional. Fotos podem ser ilustrativas de uma espécie e ter créditos do iNaturalist. Quando falta uma imagem, o catálogo exibe Não há foto disponível. O catálogo não informa quantidade em estoque, toxicidade para animais nem um guia específico de cuidados de todas as espécies. Quando essa informação estiver ausente, confirme com a loja antes de escolher. O assistente deve informar quando a base não permite confirmar uma resposta.",
+    "source_url": ""
+  }
+]

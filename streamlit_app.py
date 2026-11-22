@@ -15,6 +15,7 @@ from redis.retry import Retry
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from flora.auth import AccessDenied, SupabaseAuth
+from flora.assistant_widget import show_assistant
 from flora.inaturalist import (
     HERO_PHOTO, PREVIEW_PLANTS, SPECIES_LIMIT, Species, fetch_species_photo, search_species,
 )
@@ -587,6 +588,7 @@ def main():
         return
 
     page = navigation(settings, is_admin)
+    show_assistant(settings)
     if page == ADMIN:
         show_admin(settings)
     elif page == CART:

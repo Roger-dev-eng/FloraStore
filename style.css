@@ -254,7 +254,68 @@
   border-radius: .55rem;
 }
 
+.st-key-assistant_launcher {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 5.5rem;
+  width: 3.5rem;
+  z-index: 1000;
+}
+
+.st-key-assistant_launcher [data-testid="stPopoverButton"] {
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: 0 .35rem 1.2rem #233b2a30;
+}
+
+.st-key-assistant_launcher [data-testid="stPopoverButton"] p {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.st-key-assistant_launcher [data-testid="stPopoverButton"] > div > div[aria-hidden="true"] {
+  display: none;
+}
+
+[data-testid="stPopoverBody"]:has(.st-key-assistant_panel) {
+  width: min(390px, calc(100vw - 1.5rem));
+  max-width: calc(100vw - 1.5rem);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.st-key-assistant_panel h3 {
+  font-size: 1.55rem;
+}
+
+.st-key-assistant_panel .st-key-assistant_clear p {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.st-key-assistant_panel [data-testid="stChatMessage"] {
+  padding: .6rem;
+  gap: .5rem;
+}
+
+.st-key-assistant_panel [data-testid="stChatMessage"] p {
+  font-size: .88rem;
+}
+
 @media (max-width: 640px) {
+  .st-key-assistant_launcher {
+    right: .9rem;
+  }
+
   [data-testid="stSegmentedControl"] [role="radiogroup"] {
     justify-content: flex-start;
   }

@@ -4,3 +4,4 @@ __pycache__/
 .streamlit/secrets.toml
 .env
 .pytest_cache/
+.assistant_data/

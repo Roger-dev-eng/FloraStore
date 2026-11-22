@@ -15,6 +15,8 @@ class Settings:
     mongodb_database: str = "florastore"
     redis_url: str = ""
     whatsapp_number: str = ""
+    n8n_webhook_url: str = ""
+    assistant_api_key: str = ""
 
 
 def load_settings(secrets=None):
@@ -32,4 +34,6 @@ def load_settings(secrets=None):
         mongodb_database=value("MONGODB_DATABASE", "florastore") or "florastore",
         redis_url=value("REDIS_URL"),
         whatsapp_number=value("WHATSAPP_NUMBER"),
+        n8n_webhook_url=value("N8N_WEBHOOK_URL"),
+        assistant_api_key=value("ASSISTANT_API_KEY"),
     )
