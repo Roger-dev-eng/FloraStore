@@ -1,129 +1,274 @@
-# FloraStore
+# FloraStore — Catálogo de Plantas com Banco de Dados Poliglota
 
-Catálogo público de plantas com busca, filtros, carrinho e finalização pelo WhatsApp. No painel administrativo, busque uma planta pelo nome comum ou científico, selecione o resultado e clique em **Usar espécie** para preencher os nomes da planta e aproveitar uma foto licenciada, quando disponível. O administrador define o preço de cada novo cadastro. A descrição é opcional. Também é possível cadastrar a planta manualmente.
+## Conteúdo
 
-Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite um nome popular ou científico em **Buscar plantas** e use **Categoria** para refinar os resultados. **Entrar como administrador** abre o formulário de login do Supabase. Quando o catálogo do cliente está vazio ou indisponível, ele exibe exemplos do iNaturalist. Use **Trocar acesso** ou **Sair** para retornar à tela inicial.
+- [Descrição](#descrição)
+- [Objetivo](#objetivo)
+- [Funcionalidades](#funcionalidades)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Explicação dos principais componentes](#explicação-dos-principais-componentes)
+- [Arquitetura dos dados](#arquitetura-dos-dados)
+- [Como executar localmente](#como-executar-localmente)
+- [Como usar](#como-usar)
+- [Como o assistente funciona](#como-o-assistente-funciona)
+- [Deploy no Streamlit Cloud](#deploy-no-streamlit-cloud)
+- [Demonstração do projeto](#demonstração-do-projeto)
+- [O que foi aprendido](#o-que-foi-aprendido)
+- [Tecnologias utilizadas](#tecnologias-utilizadas)
+- [Créditos](#créditos)
+
+## Descrição
+
+A **FloraStore** é uma aplicação web de catálogo e pedidos de plantas. O cliente pode pesquisar espécies, filtrar produtos por categoria, montar um carrinho e finalizar o pedido pelo WhatsApp. O administrador possui uma área restrita para cadastrar produtos e aproveitar informações botânicas e fotos do iNaturalist.
+
+O projeto utiliza **Python** e **Streamlit**, com uma arquitetura de **banco de dados poliglota**: Supabase para autenticação e armazenamento vetorial, MongoDB para os produtos e Redis para cache. Um assistente com IA consulta o catálogo e uma base de conhecimento para responder perguntas sobre as plantas e o funcionamento da loja.
+
+Acesse a aplicação: [FloraStore no Streamlit Cloud](https://florastore.streamlit.app/).
+
+## Objetivo
+
+Aplicar diferentes tecnologias de persistência em uma mesma aplicação, atribuindo a cada banco uma responsabilidade adequada ao seu modelo de dados. O sistema reúne autenticação administrativa, documentos de produtos, cache de consultas recentes e busca vetorial para apoiar o atendimento ao cliente.
+
+## Funcionalidades
+
+- Escolher entre acesso como cliente e login como administrador.
+- Autenticar o administrador pelo Supabase e verificar sua permissão de acesso.
+- Cadastrar plantas com nome, categoria, preço, imagem e descrição opcional.
+- Pesquisar espécies pelo nome comum ou científico no cadastro administrativo.
+- Preencher os nomes da planta e aproveitar uma foto licenciada ao selecionar uma espécie.
+- Importar um catálogo inicial de até 30 espécies para o MongoDB.
+- Buscar produtos por nome comum ou científico e filtrar por categoria.
+- Exibir uma mensagem quando a planta não possui foto disponível.
+- Adicionar e remover itens do carrinho, alterar quantidades e calcular o total.
+- Consultar os produtos selecionados recentemente, com cache no Redis.
+- Abrir o WhatsApp com o pedido formatado para revisão e envio pelo cliente.
+- Conversar com um assistente em um painel flutuante, com histórico e fontes consultadas.
+
+## Estrutura do projeto
+
+```text
+FloraStore/
+├── .streamlit/
+│   ├── config.toml             # Tema e configurações da interface
+│   └── secrets.toml            # Credenciais locais; criado pelo usuário e ignorado pelo Git
+├── flora/
+│   ├── __init__.py
+│   ├── auth.py                 # Autenticação e autorização administrativa
+│   ├── assistant_widget.py     # Botão e painel do assistente
+│   ├── inaturalist.py          # Busca de espécies e fotos
+│   ├── products.py             # Modelo, validações, busca e cálculo dos pedidos
+│   ├── settings.py             # Carregamento das configurações
+│   └── storage.py              # Persistência dos produtos e cache de recentes
+├── assistant/
+│   ├── __init__.py
+│   ├── groq_client.py          # Integração com a API da Groq
+│   ├── knowledge.json          # Conteúdos e fontes da base de conhecimento
+│   ├── rag.py                  # Embeddings, sincronização e busca no Supabase
+│   └── service.py              # Coordenação da conversa com o contexto recuperado
+├── scripts/
+│   ├── grant_admin.sql         # Concessão da permissão administrativa
+│   ├── seed_catalog.py         # Importação do catálogo inicial
+│   └── setup_vectors.sql       # Tabela, índice e função de busca vetorial
+├── streamlit_app.py            # Entrada da aplicação e composição das telas
+├── style.css                   # Estilos e responsividade
+├── requirements.txt            # Dependências Python
+├── .gitignore
+└── README.md
+```
+
+## Explicação dos principais componentes
+
+### `streamlit_app.py`
+
+Organiza a tela de entrada, o catálogo público, o carrinho e o painel administrativo. Integra os serviços de dados e atualiza a listagem do catálogo a cada cinco segundos para refletir novos cadastros.
+
+### `flora/`
+
+Reúne as regras da loja, a integração com o iNaturalist, a autenticação no Supabase, o acesso ao MongoDB e o cache no Redis. O módulo `products.py` trata os preços em centavos e monta a mensagem e o link do WhatsApp.
+
+### `assistant/`
+
+Concentra o processamento das perguntas, a recuperação do contexto no Supabase e a geração das respostas pela Groq. O painel de conversa fica em `flora/assistant_widget.py`, que chama esse serviço diretamente no processo do Streamlit.
+
+### `scripts/`
+
+Contém a importação das espécies iniciais e os scripts SQL de autorização administrativa e preparação do banco vetorial. Os arquivos SQL devem ser executados no projeto Supabase utilizado pela loja.
 
 ## Arquitetura dos dados
 
 | Tecnologia | Responsabilidade |
 | --- | --- |
-| **Supabase Auth / PostgreSQL** | Login por e-mail e senha, identidade e autorização do administrador. A permissão fica em `app_metadata.role` e é consultada diretamente no Supabase antes de publicar um produto. |
-| **MongoDB** | Fonte do catálogo. Cada documento contém nome, categoria, descrição, preço em centavos e, quando disponíveis, origem botânica e créditos da foto. Cadastros manuais também guardam o identificador Supabase de quem os criou. |
-| **Redis** | Lista os oito últimos produtos adicionados por sessão anônima durante 24 horas após a última seleção. Também guarda a validação da sessão administrativa por até 30 segundos, usando um hash do token como chave e sem salvar senhas ou tokens no cache. Se o Redis estiver indisponível, o painel consulta o Supabase diretamente. |
-| **Streamlit** | Interface pública e painel. O carrinho vive na sessão do navegador. O catálogo aberto consulta o MongoDB a cada cinco segundos para refletir novos produtos. |
-| **iNaturalist** | Fonte externa de espécies e fotos. O catálogo lê os produtos do MongoDB após a importação. Os preços e nomes comerciais iniciais são exemplos da FloraStore. |
-| **Supabase pgvector** | Armazena embeddings e trechos dos produtos e da base de conhecimento. A função `match_flora_knowledge` faz busca por similaridade do cosseno. |
-| **Assistente Python / Groq** | Executa no próprio Streamlit, recupera contexto no Supabase e gera respostas com a Groq. O modelo de embeddings fica em cache no servidor. |
+| **Supabase Auth / PostgreSQL** | Autenticação por e-mail e senha e autorização pelo atributo `app_metadata.role`. A permissão é consultada novamente no Supabase antes de publicar um produto. |
+| **MongoDB** | Armazenamento dos documentos na coleção `products`, com nomes, categoria, descrição, preço, imagem e dados de origem. |
+| **Redis** | Cache dos oito últimos produtos adicionados ao carrinho por sessão, com validade de 24 horas após a última seleção. Também armazena a validação administrativa por até 30 segundos, sem guardar senhas ou tokens no cache. |
+| **Supabase pgvector** | Armazenamento dos trechos e vetores na tabela `flora_knowledge` e busca por similaridade com a função `match_flora_knowledge`. |
 
-O botão de compra abre o WhatsApp com quantidades, subtotais e total. O cliente revisa e envia a mensagem no WhatsApp.
+O carrinho e o histórico de conversa ficam na sessão do Streamlit. A finalização abre uma mensagem no WhatsApp; a aplicação não processa pagamentos nem grava pedidos em uma coleção própria.
 
-## Configuração dos serviços
+## Como executar localmente
 
-### Supabase
+### 1. Pré-requisitos
 
-1. Crie um projeto e copie a URL e a chave **Publishable** em **Project Settings → API Keys**. Use-as em `SUPABASE_URL` e `SUPABASE_KEY`.
-2. Em **Authentication → Users**, crie uma conta de teste com e-mail e senha e confirme seu e-mail.
-3. Copie o UUID do usuário, substitua o UUID de exemplo em [scripts/grant_admin.sql](scripts/grant_admin.sql) e execute a consulta no **SQL Editor**. Faça login no painel com essa conta.
+- Python **3.12**.
+- [uv](https://docs.astral.sh/uv/) para criar o ambiente e instalar as dependências.
+- Um projeto no Supabase, um cluster MongoDB Atlas e uma conexão Redis.
+- Chave da Groq para habilitar o assistente.
+- Número de WhatsApp da loja para habilitar a finalização do pedido.
 
-A aplicação usa o banco PostgreSQL gerenciado pelo Supabase por meio do Supabase Auth. Guarde a senha da conta de teste separadamente. [Documentação do Supabase Auth](https://supabase.com/docs/guides/auth/users)
-
-### MongoDB Atlas
-
-1. Crie um cluster e um usuário de banco com permissão `readWrite` no banco `florastore`.
-2. Copie a URI de conexão do driver Python para `MONGODB_URI`. Codifique caracteres reservados na senha antes de colocá-la na URI.
-3. Na lista de acesso de rede, autorize o IP da sua máquina para testar e importar o catálogo. Para publicar, adicione os IPs do Streamlit Community Cloud conforme a documentação atual. [Lista de IPs do Streamlit](https://docs.streamlit.io/deploy/streamlit-community-cloud/status) · [Acesso de rede do Atlas](https://www.mongodb.com/docs/atlas/security/ip-access-list/)
-
-### Redis e WhatsApp
-
-1. Em um Redis gerenciado, copie a URL do endpoint para `REDIS_URL`. Use `rediss://` para conexões TLS e `redis://` para desenvolvimento local sem TLS.
-2. Em `WHATSAPP_NUMBER`, informe o número da loja em formato internacional, com código do país e DDD. O checkout ficará indisponível enquanto o campo estiver vazio.
-
-### Executar localmente
-
-No PowerShell, use o [uv](https://docs.astral.sh/uv/getting-started/installation/) a partir da raiz do repositório. Se `.venv` já existir, use o ambiente existente.
+### 2. Clonar o repositório e instalar as dependências
 
 ```powershell
-if (-not (Test-Path .venv/Scripts/python.exe)) {
-    uv venv --python 3.12 .venv
-}
+git clone https://github.com/Roger-dev-eng/FloraStore.git
+cd FloraStore
+uv venv --python 3.12 .venv
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
-if (-not (Test-Path .streamlit/secrets.toml)) {
-    Copy-Item .streamlit/secrets.example.toml .streamlit/secrets.toml
-}
 ```
 
-Preencha `.streamlit/secrets.toml` com as credenciais. O Git ignora esse arquivo. As mesmas chaves também podem ser fornecidas como variáveis de ambiente.
+Se o ambiente `.venv` já existir, execute apenas a instalação das dependências.
 
-```powershell
-# Importa 30 espécies iniciais e cria o índice de ordenação no MongoDB
-.venv\Scripts\python.exe -m scripts.seed_catalog
+### 3. Configurar as credenciais
 
-# Inicia a aplicação
-.venv\Scripts\python.exe -m streamlit run streamlit_app.py
-```
-
-A importação pode ser repetida. Cada espécie importada tem um identificador estável baseado no iNaturalist. O script só insere produtos ausentes e só aproveita fotos marcadas como CC0 ou CC BY. Os respectivos créditos aparecem no catálogo. [API do iNaturalist](https://api.inaturalist.org/v1/docs/)
-
-## Assistente Python com Supabase e Groq
-
-O botão de conversa fica no canto inferior direito após entrar na loja. Ele abre um painel pequeno com histórico da sessão, campo de perguntas, opção de nova conversa e fontes consultadas. A integração com Groq e o fluxo de contexto foram adaptados do projeto [Roger-dev-eng/ChatBot](https://github.com/Roger-dev-eng/ChatBot).
-
-O chat chama funções Python dentro do próprio processo do Streamlit. A loja publicada funciona com o computador do desenvolvedor desligado, sem iniciar outros servidores.
-
-### Preparar o banco e as chaves
-
-1. No Supabase da FloraStore, execute [scripts/setup_vectors.sql](scripts/setup_vectors.sql) no **SQL Editor**, caso ainda não tenha feito isso. O script cria pgvector, a tabela `flora_knowledge`, o índice e a função `match_flora_knowledge`. A tabela tem RLS e acesso restrito à chave de serviço.
-2. Nas configurações de API do Supabase, copie a chave **Secret** para `SUPABASE_SERVICE_KEY`. Preserve `SUPABASE_KEY`, que continua sendo a chave pública usada na autenticação administrativa.
-3. Configure a chave da Groq como `GROQ_API_KEY`. Localmente, ela também pode continuar no `.env`. Na nuvem, cadastre-a em **Settings → Secrets**, pois o `.env` local não é enviado ao Cloud.
-
-Acrescente estas configurações aos segredos existentes:
+Crie manualmente o arquivo `.streamlit/secrets.toml` com as configurações abaixo. Se o arquivo já existir, edite somente os valores necessários, preservando suas credenciais.
 
 ```toml
-SUPABASE_SERVICE_KEY = "sua chave Secret do Supabase"
-GROQ_API_KEY = "sua chave da Groq"
+SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
+SUPABASE_KEY = "SUA_CHAVE_PUBLICA_DO_SUPABASE"
+MONGODB_URI = "mongodb+srv://USUARIO:SENHA@SEU-CLUSTER.mongodb.net/?retryWrites=true&w=majority"
+MONGODB_DATABASE = "florastore"
+REDIS_URL = "rediss://USUARIO:SENHA@HOST:PORTA/0"
+WHATSAPP_NUMBER = "55DDNUMERO"
+
+# Configurações do assistente
+SUPABASE_SERVICE_KEY = "SUA_CHAVE_SECRET_DO_SUPABASE"
+GROQ_API_KEY = "SUA_CHAVE_DA_GROQ"
+
 # Opcional: modelo habilitado na sua conta Groq
 GROQ_MODEL = "qwen/qwen3.8-27b"
 ```
 
-`SUPABASE_URL`, `MONGODB_URI` e `MONGODB_DATABASE` continuam sendo as configurações da loja. Nunca publique os arquivos de segredos no GitHub.
+Use o número do WhatsApp com código do país, DDD e número, somente com dígitos. Para um Redis local sem TLS, utilize `redis://`; em uma conexão com TLS, use `rediss://`.
 
-### Executar localmente ou no Cloud
+As configurações também podem ser fornecidas por variáveis de ambiente ou por um `.env` local. O `.env` e o `.streamlit/secrets.toml` são ignorados pelo Git. As variáveis de ambiente têm prioridade sobre os valores do TOML.
 
-As dependências do chat estão no `requirements.txt` principal. Para testar localmente:
+### 4. Preparar o Supabase
+
+1. Copie a URL do projeto e a chave **Publishable**, ou a chave legada **anon**, para `SUPABASE_URL` e `SUPABASE_KEY`.
+2. Em **Authentication → Users**, crie o usuário administrador com e-mail confirmado e senha.
+3. Copie o UUID desse usuário. No SQL Editor, adapte a consulta de [scripts/grant_admin.sql](scripts/grant_admin.sql), substituindo o UUID presente no arquivo pelo UUID da sua conta, e execute.
+4. Para habilitar o assistente, execute [scripts/setup_vectors.sql](scripts/setup_vectors.sql). Esse script prepara a tabela, o índice e a função de busca com pgvector.
+5. Copie a chave **Secret**, ou a chave legada **service_role**, para `SUPABASE_SERVICE_KEY`. Essa chave é utilizada no servidor para acessar a base vetorial e deve permanecer privada.
+
+O login administrativo utiliza a conta criada no Supabase. Não há usuário ou senha padrão no código.
+
+### 5. Preparar o MongoDB e o Redis
+
+No MongoDB Atlas, crie um usuário com acesso de leitura e escrita ao banco configurado e preencha `MONGODB_URI` com a conexão do driver Python. Caracteres reservados na senha precisam ser codificados na URI. Autorize o IP do computador em **Network Access** para executar e importar o catálogo localmente.
+
+O script de importação cria o índice de ordenação da coleção `products`. Para o Redis, preencha `REDIS_URL` com a URL de conexão do seu serviço. Se o Redis estiver indisponível, a validação administrativa consulta diretamente o Supabase; o login continua sob responsabilidade do Supabase.
+
+### 6. Importar as plantas e iniciar a aplicação
 
 ```powershell
-uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+.venv/Scripts/python.exe -m scripts.seed_catalog
 .venv/Scripts/python.exe -m streamlit run streamlit_app.py
 ```
 
-No Streamlit Cloud, publique o código atualizado e acrescente as chaves acima em **Manage app → Settings → Secrets**, preservando as conexões já existentes. O Cloud reinstala as dependências quando o `requirements.txt` muda. Use Python 3.12. Entre como cliente, abra o chat e pergunte **Quanto custa a zamioculca?** ou **Como funciona a compra?**.
+Acesse [http://localhost:8501](http://localhost:8501) no navegador. Para encerrar, pressione **Ctrl+C** no terminal.
 
-### Busca vetorial e desempenho
+A importação consulta o iNaturalist para cadastrar até 30 espécies. Ela pode ser repetida: os identificadores são estáveis e produtos já existentes não são sobrescritos. Os preços iniciais são exemplos definidos no script da FloraStore, não valores fornecidos pelo iNaturalist.
 
-O FastEmbed gera vetores de 384 dimensões com `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`. O primeiro envio de pergunta baixa e carrega o modelo; pode demorar mais. O serviço fica em `st.cache_resource`, compartilhando o modelo entre sessões e preservando as conversas somente na sessão de cada cliente. Ao reiniciar o aplicativo ou mudar as credenciais, o serviço é criado novamente. O catálogo e a tela de login não carregam o modelo antecipadamente.
+## Como usar
 
-Os vetores são persistidos no Supabase e continuam disponíveis após reinícios do Streamlit. A base inclui o catálogo do MongoDB e [assistant/knowledge.json](assistant/knowledge.json). A cada pergunta, o assistente compara os hashes dos documentos e sincroniza somente os trechos alterados. A busca combina similaridade vetorial com correspondência de nomes. Os preços atuais são lidos do MongoDB ao montar o contexto. O histórico de cada conversa é enviado à Groq com os trechos recuperados.
+### Cliente
 
-A utilização depende dos limites de recursos do Streamlit Cloud e das cotas da Groq. Se o modelo não puder ser carregado ou algum serviço externo falhar, o chat informa indisponibilidade sem impedir o uso do catálogo. Se faltar uma chave obrigatória, o campo de perguntas fica desabilitado. No vídeo, mostre as fontes no chat e os vetores em **Supabase → Table Editor → flora_knowledge**.
+1. Na tela inicial, escolha **Entrar como cliente**.
+2. Pesquise pelo nome comum ou científico e utilize o filtro de categoria.
+3. Adicione plantas ao carrinho e consulte os produtos selecionados recentemente.
+4. Abra **Carrinho**, ajuste as quantidades e confira o total.
+5. Clique em **Comprar pelo WhatsApp**, revise a mensagem e envie o pedido para a loja.
 
-## Publicar no Streamlit Community Cloud
+### Administrador
 
-1. Em [Streamlit Community Cloud](https://share.streamlit.io/), entre com a conta que tem acesso ao repositório do projeto no GitHub. Selecione **Create app**.
-2. Selecione `Roger-dev-eng/FloraStore`, branch `main` e arquivo `streamlit_app.py`.
-3. Abra **Advanced settings**, selecione Python 3.12 e cole o conteúdo do arquivo local de segredos no campo **Secrets**.
-4. Clique em **Deploy**. Abra a URL gerada e confirme que o catálogo carrega, que o administrador consegue entrar e que adicionar um produto faz aparecer a seção **Selecionados recentemente**. [Guia de publicação](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) · [Configuração dos segredos](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management)
+1. Escolha **Entrar como administrador** e informe o e-mail e a senha cadastrados no Supabase.
+2. Pesquise a planta pelo nome comum ou científico.
+3. Selecione a espécie e clique em **Usar espécie** para preencher os nomes e aproveitar uma foto, quando disponível.
+4. Confira os dados, informe o preço e publique o produto. A descrição é opcional; o cadastro manual também está disponível.
+5. Volte ao catálogo do cliente para conferir o novo produto.
 
-## Roteiro do vídeo de demonstração
+### Assistente
 
-Grave de 5 a 10 minutos. Use sua conta administrativa de teste e mantenha senhas e chaves fora da gravação.
+Após entrar na loja, clique no botão flutuante de conversa. Pergunte, por exemplo, **Quanto custa a zamioculca?** ou **Como funciona a compra?**. O painel permite consultar as fontes utilizadas e apagar o histórico com **Nova conversa**.
 
-| Tempo sugerido | O que mostrar |
+## Como o assistente funciona
+
+1. O cliente envia uma pergunta pelo painel do Streamlit.
+2. O serviço consulta os produtos no MongoDB e sincroniza os trechos novos ou alterados com a base vetorial do Supabase.
+3. O FastEmbed gera o vetor da pergunta com o modelo multilíngue `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, de 384 dimensões.
+4. A busca combina similaridade vetorial e correspondência de nomes das espécies. Os preços atuais são acrescentados ao contexto a partir do MongoDB.
+5. A Groq recebe a pergunta, o histórico recente e o contexto recuperado para gerar a resposta, apresentada no chat com suas fontes.
+
+A base inclui os produtos e os conteúdos de [assistant/knowledge.json](assistant/knowledge.json). Os vetores ficam persistidos no Supabase. O modelo de embeddings é carregado na primeira pergunta e reutilizado com `st.cache_resource`, enquanto as conversas permanecem separadas por sessão.
+
+O assistente executa no próprio Streamlit, inclusive no Cloud. A primeira pergunta pode demorar pelo download e carregamento do modelo. Seu funcionamento depende das configurações, das cotas da Groq e dos recursos disponíveis no servidor. Sem as chaves obrigatórias, o campo de perguntas fica desabilitado.
+
+## Deploy no Streamlit Cloud
+
+1. Envie o código atualizado para o GitHub.
+2. Em [Streamlit Community Cloud](https://share.streamlit.io/), crie um aplicativo usando o repositório `Roger-dev-eng/FloraStore`, a branch `main` e o arquivo `streamlit_app.py`.
+3. Selecione Python **3.12** nas configurações de implantação.
+4. Preencha **Secrets** com as configurações da loja e do assistente. O `.env` e o arquivo local de segredos não são enviados automaticamente ao Cloud.
+5. No MongoDB Atlas, autorize as conexões do Streamlit Cloud conforme a [documentação de endereços IP](https://docs.streamlit.io/deploy/streamlit-community-cloud/status).
+6. Publique o aplicativo e confira o catálogo, o login administrativo, o carrinho e uma pergunta ao assistente.
+
+Em um aplicativo já publicado, atualize as credenciais em **Manage app → Settings → Secrets**. Preserve as conexões existentes e mantenha as entradas do exemplo TOML no nível principal, antes de eventuais seções. Consulte os logs em **Manage app** se algum serviço falhar.
+
+A aplicação publicada acessa os bancos e a Groq pela nuvem e pode funcionar com o computador do desenvolvedor desligado.
+
+## Demonstração do projeto
+
+Para a entrega acadêmica, grave um vídeo de **5 a 10 minutos** mostrando:
+
+1. A entrada do cliente e a organização do catálogo.
+2. O login do administrador pelo Supabase.
+3. O cadastro de uma planta e sua atualização no catálogo público.
+4. A montagem do carrinho e o cálculo do total.
+5. O redirecionamento para o WhatsApp com o pedido formatado.
+6. Como complemento, uma pergunta ao assistente e as fontes apresentadas na resposta.
+
+Envie o link do repositório e o vídeo na Plataforma A. Verifique se o link da gravação está acessível antes de entregar e mantenha credenciais fora da gravação.
+
+## O que foi aprendido
+
+- Distribuição de responsabilidades entre bancos relacionais, documentos, cache e vetores.
+- Autenticação e autorização administrativa com Supabase.
+- Persistência e consulta de documentos com MongoDB e PyMongo.
+- Uso de Redis com tempo de expiração e recuperação quando o cache falha.
+- Consumo de uma API externa para enriquecer o catálogo.
+- Construção de uma aplicação Streamlit com carrinho e integração ao WhatsApp.
+- Recuperação de contexto com embeddings e pgvector para um assistente com IA.
+- Publicação no Streamlit Cloud e configuração de credenciais por ambiente.
+
+## Tecnologias utilizadas
+
+| Tecnologia | Função |
 | --- | --- |
-| 0:00–0:50 | Mostre as duas opções da tela inicial, entre como cliente e explique o papel de Supabase, MongoDB e Redis. |
-| 0:50–1:45 | Em outra janela, escolha **Entrar como administrador**, faça login e mostre o painel de cadastro. |
-| 1:45–3:15 | Consulte uma espécie no iNaturalist, clique em **Usar espécie**, informe a categoria e o preço e publique. Volte à janela do cliente e mostre a planta recém-cadastrada. |
-| 3:15–4:45 | Adicione dois produtos, mostre a lista de recentes, altere uma quantidade e confira o total. |
-| 4:45–5:30 | Clique em **Comprar pelo WhatsApp** para mostrar o redirecionamento e o texto preenchido. Encerre a simulação nessa etapa. |
+| **Python** | Linguagem principal da aplicação |
+| **Streamlit** | Interface, estado de sessão e execução do assistente |
+| **Supabase Auth / PostgreSQL** | Identidade e autorização do administrador |
+| **MongoDB Atlas / PyMongo** | Armazenamento e consulta dos produtos |
+| **Redis** | Cache de produtos recentes e validação administrativa |
+| **pgvector** | Armazenamento e busca por similaridade dos vetores no Supabase |
+| **FastEmbed** | Geração local dos embeddings no servidor da aplicação |
+| **Groq API** | Geração das respostas do assistente |
+| **iNaturalist API** | Consulta de espécies e fotos com créditos |
+| **HTTPX** | Requisições às APIs externas |
+| **python-dotenv** | Leitura das configurações do `.env` local |
+| **CSS** | Estilos e adaptação da interface a diferentes telas |
+| **uv** | Criação do ambiente e instalação das dependências |
+| **Streamlit Community Cloud** | Hospedagem da aplicação |
 
-Na Plataforma A, envie o link do repositório e anexe o vídeo ou o link da gravação. Teste o link do vídeo em uma janela anônima antes de entregar.
+## Créditos
+
+As informações botânicas e fotos são consultadas no [iNaturalist](https://www.inaturalist.org/). A integração utiliza fotos identificadas como **CC0** ou **CC BY**, com os respectivos créditos exibidos no catálogo.
+
+A integração com a Groq e a organização do fluxo de contexto foram adaptadas do projeto [ChatBot](https://github.com/Roger-dev-eng/ChatBot), do mesmo autor. Os conteúdos de apoio do assistente e suas fontes estão registrados em `assistant/knowledge.json`.

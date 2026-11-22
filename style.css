@@ -256,7 +256,7 @@
 
 .st-key-assistant_launcher {
   position: fixed;
-  right: 1.5rem;
+  right: clamp(1.5rem, 10vw, 10rem);
   bottom: 5.5rem;
   width: 3.5rem;
   z-index: 1000;
