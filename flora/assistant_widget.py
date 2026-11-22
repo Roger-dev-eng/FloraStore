@@ -1,23 +1,22 @@
 from urllib.parse import urlsplit
+import logging
 
-import httpx
 import streamlit as st
 
 
+LOGGER = logging.getLogger(__name__)
+
+
+@st.cache_resource(max_entries=1, show_spinner=False)
+def get_assistant(settings):
+    # Importa e carrega o modelo somente quando o cliente faz uma pergunta.
+    from assistant.service import ChatAssistant
+
+    return ChatAssistant(settings)
+
+
 def send_question(settings, question, history):
-    response = httpx.post(
-        settings.n8n_webhook_url, timeout=65,
-        headers={"X-Flora-Key": settings.assistant_api_key},
-        json={"question": question, "history": history},
-    )
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict) or not isinstance(payload.get("answer"), str) or not payload["answer"].strip():
-        raise ValueError("Resposta inválida do assistente.")
-    sources = payload.get("sources")
-    if not isinstance(sources, list):
-        sources = []
-    return {"role": "assistant", "content": payload["answer"], "sources": sources}
+    return get_assistant(settings).answer(question, history)
 
 
 def show_sources(sources):
@@ -64,7 +63,8 @@ def show_assistant(settings):
                                 st.write(message["content"])
                                 show_sources(message.get("sources", []))
                     pending = st.empty()
-                configured = bool(settings.n8n_webhook_url and settings.assistant_api_key)
+                configured = bool(settings.supabase_url and settings.supabase_service_key
+                                  and settings.mongodb_uri and settings.groq_key)
                 if not configured:
                     st.caption("O atendimento virtual estará disponível em breve.")
                 question = st.chat_input("Pergunte sobre as plantas…", max_chars=1000,
@@ -78,9 +78,16 @@ def show_assistant(settings):
                         with st.spinner("Consultando as plantas…"):
                             try:
                                 answer = send_question(settings, question.strip(), history)
-                            except (httpx.HTTPError, ValueError):
+                            except Exception as error:
+                                # Registra só o tipo: URLs de conexão e chaves não vão para os logs.
+                                LOGGER.warning("Assistente indisponível (%s)", type(error).__name__)
                                 answer = {"role": "assistant", "error": True,
                                           "content": "O assistente está indisponível agora. Tente novamente em instantes."}
+                        with st.chat_message("assistant"):
+                            if answer.get("error"):
+                                st.error(answer["content"])
+                            else:
+                                st.write(answer["content"])
+                                show_sources(answer.get("sources", []))
                     messages.append(answer)
                     st.session_state.assistant_messages = messages[-24:]
-                    st.rerun(scope="fragment")

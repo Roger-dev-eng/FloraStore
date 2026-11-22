@@ -14,7 +14,7 @@ Na tela inicial, **Entrar como cliente** abre o catálogo como visitante. Digite
 | **Streamlit** | Interface pública e painel. O carrinho vive na sessão do navegador. O catálogo aberto consulta o MongoDB a cada cinco segundos para refletir novos produtos. |
 | **iNaturalist** | Fonte externa de espécies e fotos. O catálogo lê os produtos do MongoDB após a importação. Os preços e nomes comerciais iniciais são exemplos da FloraStore. |
 | **Supabase pgvector** | Armazena embeddings e trechos dos produtos e da base de conhecimento. A função `match_flora_knowledge` faz busca por similaridade do cosseno. |
-| **n8n local** | Recebe perguntas, aciona a recuperação vetorial, aciona a geração com Groq e devolve a resposta ao chat da loja. |
+| **Assistente Python / Groq** | Executa no próprio Streamlit, recupera contexto no Supabase e gera respostas com a Groq. O modelo de embeddings fica em cache no servidor. |
 
 O botão de compra abre o WhatsApp com quantidades, subtotais e total. O cliente revisa e envia a mensagem no WhatsApp.
 
@@ -65,66 +65,47 @@ Preencha `.streamlit/secrets.toml` com as credenciais. O Git ignora esse arquivo
 
 A importação pode ser repetida. Cada espécie importada tem um identificador estável baseado no iNaturalist. O script só insere produtos ausentes e só aproveita fotos marcadas como CC0 ou CC BY. Os respectivos créditos aparecem no catálogo. [API do iNaturalist](https://api.inaturalist.org/v1/docs/)
 
-## Assistente local com n8n e RAG
+## Assistente Python com Supabase e Groq
 
 O botão de conversa fica no canto inferior direito após entrar na loja. Ele abre um painel pequeno com histórico da sessão, campo de perguntas, opção de nova conversa e fontes consultadas. A integração com Groq e o fluxo de contexto foram adaptados do projeto [Roger-dev-eng/ChatBot](https://github.com/Roger-dev-eng/ChatBot).
 
-O serviço Python usa FastEmbed para gerar vetores de 384 dimensões com o modelo multilíngue `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`. O primeiro uso baixa o modelo. Os vetores são persistidos na tabela `flora_knowledge` do Supabase. A base inclui o catálogo do MongoDB e os conteúdos de [assistant/knowledge.json](assistant/knowledge.json), com suas fontes. A busca combina similaridade vetorial com correspondência de nomes para perguntas sobre espécies específicas. O catálogo é sincronizado antes de cada busca. Preços são lidos do MongoDB ao compor o contexto da resposta.
+O chat chama funções Python dentro do próprio processo do Streamlit. A loja publicada funciona com o computador do desenvolvedor desligado, sem iniciar outros servidores.
 
-### Preparar o Supabase e as chaves
+### Preparar o banco e as chaves
 
-1. No projeto Supabase da FloraStore, abra **SQL Editor**, cole [scripts/setup_vectors.sql](scripts/setup_vectors.sql) e execute. O script cria a extensão pgvector, a tabela, o índice e a função de busca. A tabela fica com RLS habilitado e acesso pelo serviço local.
-2. Em **Settings → API Keys**, copie a chave **Secret** e acrescente `SUPABASE_SERVICE_KEY = "sb_secret_..."` ao `.streamlit/secrets.toml` local. Mantenha as conexões existentes. O [modelo das chaves do assistente](.streamlit/assistant.example.toml) mostra os nomes esperados.
-3. Instale as dependências do serviço local e prepare a configuração.
+1. No Supabase da FloraStore, execute [scripts/setup_vectors.sql](scripts/setup_vectors.sql) no **SQL Editor**, caso ainda não tenha feito isso. O script cria pgvector, a tabela `flora_knowledge`, o índice e a função `match_flora_knowledge`. A tabela tem RLS e acesso restrito à chave de serviço.
+2. Nas configurações de API do Supabase, copie a chave **Secret** para `SUPABASE_SERVICE_KEY`. Preserve `SUPABASE_KEY`, que continua sendo a chave pública usada na autenticação administrativa.
+3. Configure a chave da Groq como `GROQ_API_KEY`. Localmente, ela também pode continuar no `.env`. Na nuvem, cadastre-a em **Settings → Secrets**, pois o `.env` local não é enviado ao Cloud.
 
-```powershell
-uv pip install --python .venv/Scripts/python.exe -r requirements-assistant.txt
-.venv/Scripts/python.exe -m scripts.configure_assistant
+Acrescente estas configurações aos segredos existentes:
+
+```toml
+SUPABASE_SERVICE_KEY = "sua chave Secret do Supabase"
+GROQ_API_KEY = "sua chave da Groq"
+# Opcional: modelo habilitado na sua conta Groq
+GROQ_MODEL = "qwen/qwen3.8-27b"
 ```
 
-O script gera uma chave para a comunicação local, preenche o webhook no arquivo de segredos e cria `.assistant_data/n8n/credentials.json`. Se o repositório `ChatBot` estiver ao lado da FloraStore, reaproveita sua chave Groq em um `.env` local. Caso contrário, configure `GROQ_API_KEY` nesse arquivo usando [.env.assistant.example](.env.assistant.example). O Git ignora os arquivos locais com chaves.
+`SUPABASE_URL`, `MONGODB_URI` e `MONGODB_DATABASE` continuam sendo as configurações da loja. Nunca publique os arquivos de segredos no GitHub.
 
-### Iniciar e configurar o n8n
+### Executar localmente ou no Cloud
 
-Com o Docker Desktop aberto, execute na raiz da FloraStore.
-
-```powershell
-docker compose up -d n8n
-docker compose exec -T n8n n8n import:credentials --input=/files/private/credentials.json
-docker compose exec -T n8n n8n import:workflow --input=/files/workflows/florastore-assistant.json
-docker compose exec -T n8n n8n publish:workflow --id=FloraAssistantRag
-```
-
-Abra [n8n local](http://localhost:5678). Na primeira abertura, configure sua conta local de proprietário. O fluxo **FloraStore - Assistente com Supabase pgvector e Groq** possui quatro etapas visíveis.
-
-1. **Pergunta do cliente** recebe um POST autenticado no caminho `/webhook/florastore-assistant`.
-2. **Buscar vetores no Supabase** chama o serviço Python, que gera o embedding da pergunta e consulta `match_flora_knowledge`.
-3. **Gerar resposta com Groq** usa os trechos recuperados como contexto para gerar a resposta.
-4. **Responder ao cliente** devolve o texto e as fontes ao Streamlit.
-
-Os nós usam a credencial **FloraStore local** importada pelo comando acima. As etapas HTTP chamam `http://host.docker.internal:8001`, que aponta do contêiner para o serviço Python no Windows. Na aba **Executions**, você pode inspecionar os trechos, os resultados da busca e a resposta para demonstrar o RAG.
-
-### Iniciar o assistente e a loja
-
-Em um terminal, inicie o serviço do RAG.
+As dependências do chat estão no `requirements.txt` principal. Para testar localmente:
 
 ```powershell
-.venv/Scripts/python.exe -m uvicorn assistant.server:app --host 0.0.0.0 --port 8001
-```
-
-Confira [a saúde do serviço](http://localhost:8001/health). Quando `ready` for `true`, a base vetorial estará pronta. Se aparecer `HTTPStatusError`, confira a chave Secret, a execução do SQL e os acessos do projeto Supabase. Se o serviço indicar `ValueError` ao iniciar, revise os nomes das chaves listados no terminal. Reinicie o serviço após corrigir uma configuração.
-
-Em outro terminal, abra a loja local.
-
-```powershell
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .venv/Scripts/python.exe -m streamlit run streamlit_app.py
 ```
 
-Entre como cliente, clique no balão de conversa e pergunte, por exemplo, **Quanto custa a zamioculca?** ou **Como funciona a compra?**. No vídeo, mostre as fontes no chat, a execução do n8n e os vetores em **Supabase → Table Editor → flora_knowledge**.
+No Streamlit Cloud, publique o código atualizado e acrescente as chaves acima em **Manage app → Settings → Secrets**, preservando as conexões já existentes. O Cloud reinstala as dependências quando o `requirements.txt` muda. Use Python 3.12. Entre como cliente, abra o chat e pergunte **Quanto custa a zamioculca?** ou **Como funciona a compra?**.
 
-Essa configuração conecta a loja local ao n8n do computador. Para usar o assistente a partir da loja no Streamlit Cloud, será necessário disponibilizar o webhook local por uma URL HTTPS acessível pela nuvem e configurar essa URL em `N8N_WEBHOOK_URL` nos Secrets do Cloud, junto de `ASSISTANT_API_KEY`. O computador e os dois serviços locais precisam permanecer ligados.
+### Busca vetorial e desempenho
 
-Para parar o n8n, execute `docker compose stop n8n`. Para iniciar novamente, use `docker compose up -d n8n`. Os fluxos e a conta permanecem no volume Docker `n8n_data`.
+O FastEmbed gera vetores de 384 dimensões com `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`. O primeiro envio de pergunta baixa e carrega o modelo; pode demorar mais. O serviço fica em `st.cache_resource`, compartilhando o modelo entre sessões e preservando as conversas somente na sessão de cada cliente. Ao reiniciar o aplicativo ou mudar as credenciais, o serviço é criado novamente. O catálogo e a tela de login não carregam o modelo antecipadamente.
+
+Os vetores são persistidos no Supabase e continuam disponíveis após reinícios do Streamlit. A base inclui o catálogo do MongoDB e [assistant/knowledge.json](assistant/knowledge.json). A cada pergunta, o assistente compara os hashes dos documentos e sincroniza somente os trechos alterados. A busca combina similaridade vetorial com correspondência de nomes. Os preços atuais são lidos do MongoDB ao montar o contexto. O histórico de cada conversa é enviado à Groq com os trechos recuperados.
+
+A utilização depende dos limites de recursos do Streamlit Cloud e das cotas da Groq. Se o modelo não puder ser carregado ou algum serviço externo falhar, o chat informa indisponibilidade sem impedir o uso do catálogo. Se faltar uma chave obrigatória, o campo de perguntas fica desabilitado. No vídeo, mostre as fontes no chat e os vetores em **Supabase → Table Editor → flora_knowledge**.
 
 ## Publicar no Streamlit Community Cloud
 

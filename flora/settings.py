@@ -1,7 +1,9 @@
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,11 +17,13 @@ class Settings:
     mongodb_database: str = "florastore"
     redis_url: str = ""
     whatsapp_number: str = ""
-    n8n_webhook_url: str = ""
-    assistant_api_key: str = ""
+    groq_key: str = field(default="", repr=False)
+    groq_model: str = "qwen/qwen3.8-27b"
+    supabase_service_key: str = field(default="", repr=False)
 
 
 def load_settings(secrets=None):
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
     if secrets is None:
         path = PROJECT_ROOT / ".streamlit" / "secrets.toml"
         secrets = tomllib.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
@@ -34,6 +38,7 @@ def load_settings(secrets=None):
         mongodb_database=value("MONGODB_DATABASE", "florastore") or "florastore",
         redis_url=value("REDIS_URL"),
         whatsapp_number=value("WHATSAPP_NUMBER"),
-        n8n_webhook_url=value("N8N_WEBHOOK_URL"),
-        assistant_api_key=value("ASSISTANT_API_KEY"),
+        groq_key=value("GROQ_API_KEY"),
+        groq_model=value("GROQ_MODEL", "qwen/qwen3.8-27b") or "qwen/qwen3.8-27b",
+        supabase_service_key=value("SUPABASE_SERVICE_KEY"),
     )
