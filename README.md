@@ -1,4 +1,4 @@
-# FloraStore — Catálogo de Plantas com Banco de Dados Poliglota
+# FloraStore — Catálogo de Plantas com Banco de Dados Vetorial
 
 ## Conteúdo
 
@@ -13,7 +13,6 @@
 - [Como o assistente funciona](#como-o-assistente-funciona)
 - [Deploy no Streamlit Cloud](#deploy-no-streamlit-cloud)
 - [Demonstração do projeto](#demonstração-do-projeto)
-- [O que foi aprendido](#o-que-foi-aprendido)
 - [Tecnologias utilizadas](#tecnologias-utilizadas)
 - [Créditos](#créditos)
 
@@ -237,17 +236,6 @@ Para a entrega acadêmica, grave um vídeo de **5 a 10 minutos** mostrando:
 
 Envie o link do repositório e o vídeo na Plataforma A. Verifique se o link da gravação está acessível antes de entregar e mantenha credenciais fora da gravação.
 
-## O que foi aprendido
-
-- Distribuição de responsabilidades entre bancos relacionais, documentos, cache e vetores.
-- Autenticação e autorização administrativa com Supabase.
-- Persistência e consulta de documentos com MongoDB e PyMongo.
-- Uso de Redis com tempo de expiração e recuperação quando o cache falha.
-- Consumo de uma API externa para enriquecer o catálogo.
-- Construção de uma aplicação Streamlit com carrinho e integração ao WhatsApp.
-- Recuperação de contexto com embeddings e pgvector para um assistente com IA.
-- Publicação no Streamlit Cloud e configuração de credenciais por ambiente.
-
 ## Tecnologias utilizadas
 
 | Tecnologia | Função |
@@ -270,5 +258,3 @@ Envie o link do repositório e o vídeo na Plataforma A. Verifique se o link da 
 ## Créditos
 
 As informações botânicas e fotos são consultadas no [iNaturalist](https://www.inaturalist.org/). A integração utiliza fotos identificadas como **CC0** ou **CC BY**, com os respectivos créditos exibidos no catálogo.
-
-A integração com a Groq e a organização do fluxo de contexto foram adaptadas do projeto [ChatBot](https://github.com/Roger-dev-eng/ChatBot), do mesmo autor. Os conteúdos de apoio do assistente e suas fontes estão registrados em `assistant/knowledge.json`.
