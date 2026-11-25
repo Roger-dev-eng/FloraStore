@@ -1,5 +1,9 @@
 # FloraStore — Catálogo de Plantas com Banco de Dados Vetorial integrado com IA
 
+### Integrantes
+- Roger Oliveira Feitosa
+- Geovanny Mahtus Aguiar Silva
+
 ## Conteúdo
 
 - [Descrição](#descrição)
