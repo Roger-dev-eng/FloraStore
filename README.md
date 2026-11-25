@@ -1,4 +1,4 @@
-# FloraStore — Catálogo de Plantas com Banco de Dados Vetorial
+# FloraStore — Catálogo de Plantas com Banco de Dados Vetorial integrado com IA
 
 ## Conteúdo
 
