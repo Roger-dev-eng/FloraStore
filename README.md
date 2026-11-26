@@ -4,6 +4,8 @@
 - Roger Oliveira Feitosa
 - Geovanny Mahtus Aguiar Silva
 
+[Vídeo explicativo](https://drive.google.com/file/d/1ZxrPQADNfxri73jif-gs63HPZ-DR2U64/view?usp=sharing)
+
 ## Conteúdo
 
 - [Descrição](#descrição)
